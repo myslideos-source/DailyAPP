@@ -105,18 +105,21 @@ export function ToggleRow({
   label,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="flex w-full min-h-[44px] items-center justify-between rounded-[14px] border px-3.5 py-2.5"
+      className="flex w-full min-h-[44px] items-center justify-between rounded-[14px] border px-3.5 py-2.5 disabled:opacity-50"
       style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
     >
       <span className="text-[14.5px]" style={{ color: "var(--dl-text)" }}>

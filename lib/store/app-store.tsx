@@ -599,7 +599,8 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         if (!existing) return;
         const merged = { ...existing, ...patch, updatedAt: new Date().toISOString() };
         dispatch({ type: "UPDATE_EVENT", payload: merged });
-        void repo.updateEventRow(id, categoriesRef.current, patch);
+        const { familyId } = requireFamily();
+        void repo.updateEventRow(familyId, id, categoriesRef.current, patch, merged);
       },
       deleteEvent: (id) => {
         dispatch({ type: "DELETE_EVENT", payload: { id } });

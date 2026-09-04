@@ -86,3 +86,39 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// Real Web Push: the send-due-reminders edge function posts a JSON payload
+// of { title, body, tag } — this is what lets a reminder reach the device
+// even with dayli fully closed, not just while a tab is open.
+self.addEventListener("push", (event) => {
+  let payload = { title: "dayli Erinnerung", body: "" };
+  try {
+    if (event.data) payload = { ...payload, ...event.data.json() };
+  } catch {
+    // ignore malformed payloads
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      tag: payload.tag,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-96.png",
+      data: { url: "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsList) => {
+      for (const client of clientsList) {
+        if ("focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    }),
+  );
+});

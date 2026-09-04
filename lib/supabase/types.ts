@@ -315,6 +315,44 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          profile_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          profile_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          profile_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reminders: {
         Row: {
           created_at: string
@@ -641,6 +679,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_reminder_secrets: { Args: Record<string, never>; Returns: { name: string; secret: string }[] }
       is_family_member: { Args: { target_family_id: string }; Returns: boolean }
       is_family_owner: { Args: { target_family_id: string }; Returns: boolean }
       join_family_slot: { Args: never; Returns: string }

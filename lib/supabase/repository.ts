@@ -39,6 +39,42 @@ function categoryIdToKey(categories: CategoryRef[], id: string | null): EventCat
 }
 
 // ---------------------------------------------------------------------------
+// reminders — kept in sync with an event's reminderMinutesBefore field so
+// the send-due-reminders edge function (and pg_cron) has something to poll.
+// Only fires for the base event's own date/time; recurring occurrences
+// beyond the first are not currently reminded.
+// ---------------------------------------------------------------------------
+
+function computeRemindAt(dateISO: string, startTime: string, minutesBefore: number) {
+  const [hours, minutes] = startTime.split(":").map(Number);
+  const start = new Date(`${dateISO}T00:00:00`);
+  start.setHours(hours, minutes, 0, 0);
+  start.setMinutes(start.getMinutes() - minutesBefore);
+  return start.toISOString();
+}
+
+export async function syncEventReminder(familyId: string, event: CalendarEvent) {
+  const supabase = client();
+
+  if (!event.reminderMinutesBefore || event.allDay || !event.startTime) {
+    const { error } = await supabase.from("reminders").delete().eq("event_id", event.id);
+    if (error) throw error;
+    return;
+  }
+
+  const remindAt = computeRemindAt(event.date, event.startTime, event.reminderMinutesBefore);
+  const { error: deleteError } = await supabase.from("reminders").delete().eq("event_id", event.id);
+  if (deleteError) throw deleteError;
+  const { error: insertError } = await supabase.from("reminders").insert({
+    family_id: familyId,
+    event_id: event.id,
+    remind_at: remindAt,
+    sent: false,
+  });
+  if (insertError) throw insertError;
+}
+
+// ---------------------------------------------------------------------------
 // initial load
 // ---------------------------------------------------------------------------
 
@@ -199,13 +235,21 @@ export async function insertEvent(
     .select()
     .single();
   if (error) throw error;
-  return rowToEvent(data, categories);
+  const inserted = rowToEvent(data, categories);
+  try {
+    await syncEventReminder(familyId, inserted);
+  } catch (reminderError) {
+    console.error("Failed to sync reminder for new event", reminderError);
+  }
+  return inserted;
 }
 
 export async function updateEventRow(
+  familyId: string,
   id: string,
   categories: CategoryRef[],
   patch: Partial<CalendarEvent>,
+  merged: CalendarEvent,
 ) {
   const update: Database["public"]["Tables"]["events"]["Update"] = {};
   if (patch.title !== undefined) update.title = patch.title;
@@ -223,6 +267,19 @@ export async function updateEventRow(
 
   const { error } = await client().from("events").update(update).eq("id", id);
   if (error) throw error;
+
+  const reminderRelevant =
+    patch.reminderMinutesBefore !== undefined ||
+    patch.date !== undefined ||
+    patch.startTime !== undefined ||
+    patch.allDay !== undefined;
+  if (reminderRelevant) {
+    try {
+      await syncEventReminder(familyId, merged);
+    } catch (reminderError) {
+      console.error("Failed to sync reminder for updated event", reminderError);
+    }
+  }
 }
 
 export async function deleteEventRow(id: string) {
