@@ -16,7 +16,7 @@ export function EventRow({ event, index = 0 }: { event: CalendarEvent; index?: n
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.3, ease: "easeOut" }}
-      onClick={() => openEditEvent(event)}
+      onClick={() => openEditEvent(event.id)}
       className="flex w-full min-h-[52px] items-center gap-3 rounded-[14px] border px-3.5 py-2.5 text-left"
       style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
     >

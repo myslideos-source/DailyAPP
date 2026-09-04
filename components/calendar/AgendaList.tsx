@@ -5,6 +5,7 @@ import { CalendarX } from "lucide-react";
 import { EventRow } from "@/components/calendar/EventRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatLongDate, fromISODate } from "@/lib/date-utils";
+import { occurrenceKey } from "@/lib/recurrence";
 import type { CalendarEvent } from "@/lib/types";
 
 export function AgendaList({ events, emptyLabel }: { events: CalendarEvent[]; emptyLabel?: string }) {
@@ -34,7 +35,7 @@ export function AgendaList({ events, emptyLabel }: { events: CalendarEvent[]; em
           </p>
           <div className="flex flex-col gap-2">
             {items.map((e, i) => (
-              <EventRow key={e.id} event={e} index={i} />
+              <EventRow key={occurrenceKey(e)} event={e} index={i} />
             ))}
           </div>
         </div>

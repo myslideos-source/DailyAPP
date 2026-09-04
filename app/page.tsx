@@ -6,6 +6,7 @@ import { useAppStore } from "@/lib/store/app-store";
 import { useSplash } from "@/lib/store/splash-context";
 import { PROFILES } from "@/lib/demo-data";
 import { toISODate } from "@/lib/date-utils";
+import { expandEventOccurrences, expandEventsForDay } from "@/lib/recurrence";
 import { Greeting } from "@/components/today/Greeting";
 import { WeekStrip } from "@/components/today/WeekStrip";
 import { TimeForUsCard } from "@/components/today/TimeForUsCard";
@@ -22,19 +23,16 @@ export default function HomePage() {
   const selectedISO = toISODate(selectedDate);
   const tomorrowISO = toISODate(addDays(selectedDate, 1));
 
-  const dayEvents = useMemo(() => events.filter((e) => e.date === selectedISO), [events, selectedISO]);
+  const dayEvents = useMemo(() => expandEventsForDay(events, selectedISO), [events, selectedISO]);
   const weekEvents = useMemo(() => {
     const weekEnd = addDays(weekStart, 6);
-    return events.filter((e) => {
-      const d = new Date(e.date + "T00:00:00");
-      return d >= weekStart && d <= weekEnd;
-    });
+    return expandEventOccurrences(events, toISODate(weekStart), toISODate(weekEnd));
   }, [events, weekStart]);
 
   const tomorrowEvent = useMemo(() => {
-    const list = events
-      .filter((e) => e.date === tomorrowISO)
-      .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""));
+    const list = expandEventsForDay(events, tomorrowISO).sort((a, b) =>
+      (a.startTime ?? "").localeCompare(b.startTime ?? ""),
+    );
     return list[0] ?? null;
   }, [events, tomorrowISO]);
 

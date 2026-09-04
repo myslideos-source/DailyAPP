@@ -11,6 +11,7 @@ import { QuickAddMenu } from "@/components/sheets/QuickAddMenu";
 import { EventFormSheet } from "@/components/sheets/EventFormSheet";
 import { TaskFormSheet } from "@/components/sheets/TaskFormSheet";
 import { NotificationsSheet } from "@/components/sheets/NotificationsSheet";
+import { ReminderScheduler } from "@/components/pwa/ReminderScheduler";
 import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSplash } from "@/lib/store/splash-context";
@@ -18,6 +19,14 @@ import { toISODate } from "@/lib/date-utils";
 
 function SheetRenderer() {
   const { sheet, openQuickAdd, close } = useSheet();
+  const { events } = useAppStore();
+
+  // Always the true base record (never a recurrence-expanded occurrence),
+  // so editing a future instance can't silently move the whole series.
+  const editEvent =
+    sheet?.kind === "event" && sheet.editEventId
+      ? (events.find((e) => e.id === sheet.editEventId) ?? null)
+      : null;
 
   return (
     <>
@@ -26,7 +35,7 @@ function SheetRenderer() {
         open={sheet?.kind === "event"}
         onClose={close}
         defaultDate={sheet?.kind === "event" ? sheet.date ?? toISODate(new Date()) : toISODate(new Date())}
-        editEvent={sheet?.kind === "event" ? sheet.editEvent ?? null : null}
+        editEvent={editEvent}
       />
       <EventFormSheet
         open={sheet?.kind === "birthday"}
@@ -82,6 +91,7 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
       <BottomNav onPlusClick={openQuickAddMenu} />
       <ToastStack />
       <SheetRenderer />
+      <ReminderScheduler />
     </div>
   );
 }

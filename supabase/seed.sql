@@ -61,38 +61,38 @@ begin
   select id into v_cat_freizeit from public.categories where family_id = v_family_id and key = 'freizeit';
 
   -- Today's events, mirroring lib/demo-data.ts
-  insert into public.events (id, family_id, category_id, title, date, start_time, end_time, all_day, location, notes, created_by)
+  insert into public.events (id, family_id, category_id, title, date, start_time, end_time, all_day, location, notes, assignee, created_by)
   values
     (v_evt_bemusterung, v_family_id, v_cat_hausbau, 'Bemusterung Haus', v_today, '09:00', '10:30', false,
-     'Musterhauszentrum', 'Fliesen und Armaturen final abstimmen.', v_domenico_id),
+     'Musterhauszentrum', 'Fliesen und Armaturen final abstimmen.', 'gemeinsam', v_domenico_id),
     (gen_random_uuid(), v_family_id, v_cat_kinder, 'Mias Termin', v_today, '14:30', '15:15', false,
-     'Crailsheim', null, v_elisabeth_id),
+     'Crailsheim', null, 'elisabeth', v_elisabeth_id),
     (gen_random_uuid(), v_family_id, v_cat_einkauf, 'Einkaufen', v_today, '18:00', '18:45', false,
-     null, null, v_domenico_id),
+     null, null, 'domenico', v_domenico_id),
     (gen_random_uuid(), v_family_id, v_cat_freizeit, 'Zeit für uns', v_today, '19:15', '22:00', false,
-     null, 'Der Abend gehört euch.', v_domenico_id),
+     null, 'Der Abend gehört euch.', 'gemeinsam', v_domenico_id),
     (gen_random_uuid(), v_family_id, v_cat_hausbau, 'Tiefbauer anrufen', v_today + 1, '08:30', '08:45', false,
-     null, null, v_domenico_id);
+     null, null, 'domenico', v_domenico_id);
 
   insert into public.event_participants (event_id, profile_id) values
     (v_evt_bemusterung, v_domenico_id),
     (v_evt_bemusterung, v_elisabeth_id);
 
   -- Tasks
-  insert into public.tasks (id, family_id, title, due_date, priority, is_shopping, created_by)
+  insert into public.tasks (id, family_id, title, due_date, priority, is_shopping, assignee, created_by)
   values
-    (gen_random_uuid(), v_family_id, 'Tiefbauer wegen Termin anrufen', v_today + 1, 'high', false, v_domenico_id),
-    (gen_random_uuid(), v_family_id, 'Bauversicherung vergleichen', v_today + 3, 'medium', false, v_elisabeth_id),
-    (gen_random_uuid(), v_family_id, 'Milch', v_today, 'low', true, v_domenico_id),
-    (gen_random_uuid(), v_family_id, 'Obst und Gemüse', v_today, 'low', true, v_domenico_id);
+    (gen_random_uuid(), v_family_id, 'Tiefbauer wegen Termin anrufen', v_today + 1, 'high', false, 'domenico', v_domenico_id),
+    (gen_random_uuid(), v_family_id, 'Bauversicherung vergleichen', v_today + 3, 'medium', false, 'elisabeth', v_elisabeth_id),
+    (gen_random_uuid(), v_family_id, 'Milch', v_today, 'low', true, 'domenico', v_domenico_id),
+    (gen_random_uuid(), v_family_id, 'Obst und Gemüse', v_today, 'low', true, 'domenico', v_domenico_id);
 
   -- Savings goals
   insert into public.savings_goals (id, family_id, title, target_amount, color, created_by) values
     (v_goal_haus, v_family_id, 'Haus', 25000, 'together', v_domenico_id),
     (v_goal_urlaub, v_family_id, 'Urlaub', 3000, 'together', v_elisabeth_id);
 
-  insert into public.savings_entries (goal_id, amount, contributor_id, note) values
-    (v_goal_haus, 800, v_domenico_id, 'Gehalt August'),
-    (v_goal_haus, 800, v_elisabeth_id, 'Gehalt August'),
-    (v_goal_urlaub, 150, v_elisabeth_id, null);
+  insert into public.savings_entries (goal_id, amount, contributor_id, contributor, note) values
+    (v_goal_haus, 800, v_domenico_id, 'domenico', 'Gehalt August'),
+    (v_goal_haus, 800, v_elisabeth_id, 'elisabeth', 'Gehalt August'),
+    (v_goal_urlaub, 150, v_elisabeth_id, 'elisabeth', null);
 end $$;

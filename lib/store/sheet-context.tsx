@@ -1,12 +1,11 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState } from "react";
-import type { CalendarEvent } from "@/lib/types";
 import type { QuickAddKind } from "@/components/sheets/QuickAddMenu";
 
 export type ActiveSheet =
   | { kind: "menu" }
-  | { kind: "event"; date?: string; editEvent?: CalendarEvent }
+  | { kind: "event"; date?: string; editEventId?: string }
   | { kind: "task" }
   | { kind: "reminder" }
   | { kind: "shopping" }
@@ -18,7 +17,10 @@ interface SheetContextValue {
   sheet: ActiveSheet;
   openQuickAddMenu: () => void;
   openNewEvent: (date?: string) => void;
-  openEditEvent: (event: CalendarEvent) => void;
+  /** Always resolves the *base* event by id (never a recurrence-expanded
+   * occurrence), so editing a future instance can never silently shift the
+   * whole series' anchor date — see EventFormSheet. */
+  openEditEvent: (eventId: string) => void;
   openQuickAdd: (kind: QuickAddKind) => void;
   openNotifications: () => void;
   close: () => void;
@@ -34,7 +36,7 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
       sheet,
       openQuickAddMenu: () => setSheet({ kind: "menu" }),
       openNewEvent: (date) => setSheet({ kind: "event", date }),
-      openEditEvent: (event) => setSheet({ kind: "event", editEvent: event }),
+      openEditEvent: (eventId) => setSheet({ kind: "event", editEventId: eventId }),
       openQuickAdd: (kind) => setSheet({ kind }),
       openNotifications: () => setSheet({ kind: "notifications" }),
       close: () => setSheet(null),

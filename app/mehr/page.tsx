@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  BellRing,
   ChevronRight,
+  DatabaseBackup,
   Download,
   Lock,
   LogOut,
@@ -19,21 +21,31 @@ import { useSheet } from "@/lib/store/sheet-context";
 import { PROFILES } from "@/lib/demo-data";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { usePwaInstall } from "@/lib/hooks/usePwaInstall";
+import { useOptionalSupabaseAuth } from "@/lib/store/auth-context";
+
+function useLogout() {
+  const router = useRouter();
+  const supabaseAuth = useOptionalSupabaseAuth();
+
+  return async () => {
+    if (supabaseAuth) {
+      await supabaseAuth.signOut();
+    } else {
+      try {
+        window.localStorage.removeItem("dayli:prefs:v1");
+      } catch {
+        // ignore
+      }
+    }
+    router.push("/login");
+  };
+}
 
 export default function MehrPage() {
   const { preferences } = useAppStore();
   const { openNotifications } = useSheet();
   const { isStandalone } = usePwaInstall();
-  const router = useRouter();
-
-  function handleLogout() {
-    try {
-      window.localStorage.removeItem("dayli:prefs:v1");
-    } catch {
-      // ignore
-    }
-    router.push("/login");
-  }
+  const handleLogout = useLogout();
 
   const active = PROFILES[preferences.activeProfile];
 
@@ -62,6 +74,7 @@ export default function MehrPage() {
       <div className="flex flex-col gap-2">
         <MenuRow icon={User} label="Profile" description="Domenico & Elisabeth" href="/mehr/profil" />
         <MenuRow icon={Bell} label="Benachrichtigungen" onClick={openNotifications} />
+        <MenuRow icon={BellRing} label="Erinnerungen" description="Termin-Erinnerungen" href="/mehr/erinnerungen" />
         <MenuRow icon={PiggyBank} label="Sparziele" href="/mehr/sparziele" />
         <MenuRow icon={Tags} label="Kategorien" href="/mehr/kategorien" />
         <MenuRow icon={SlidersHorizontal} label="Kalenderfilter" href="/mehr/filter" />
@@ -72,6 +85,7 @@ export default function MehrPage() {
           description={isStandalone ? "Bereits installiert" : "Auf den Homescreen legen"}
           href="/mehr/installieren"
         />
+        <MenuRow icon={DatabaseBackup} label="Sicherung" description="Exportieren & wiederherstellen" href="/mehr/backup" />
         <MenuRow icon={Lock} label="Datenschutz" href="/mehr/datenschutz" />
         <MenuRow icon={LogOut} label="Abmelden" onClick={handleLogout} danger />
       </div>

@@ -7,10 +7,15 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
 } from "react";
 import { v4 as uuid } from "uuid";
 import { createDemoDataset, DEMO_NOTIFICATIONS } from "@/lib/demo-data";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { SupabaseAuthProvider, useSupabaseAuth } from "@/lib/store/auth-context";
+import * as repo from "@/lib/supabase/repository";
+import type { CategoryRef } from "@/lib/supabase/repository";
 import type {
   AppNotification,
   Assignee,
@@ -34,6 +39,14 @@ interface AppState {
   notifications: AppNotification[];
 }
 
+const EMPTY_STATE: AppState = {
+  events: [],
+  tasks: [],
+  savingsGoals: [],
+  savingsEntries: [],
+  notifications: [],
+};
+
 type Action =
   | { type: "ADD_EVENT"; payload: CalendarEvent }
   | { type: "UPDATE_EVENT"; payload: CalendarEvent }
@@ -43,17 +56,26 @@ type Action =
   | { type: "DELETE_TASK"; payload: { id: string } }
   | { type: "TOGGLE_TASK"; payload: { id: string } }
   | { type: "TOGGLE_SUBTASK"; payload: { taskId: string; subtaskId: string } }
+  | { type: "SET_SUBTASK_DONE"; payload: { taskId: string; subtaskId: string; done: boolean } }
   | { type: "ADD_SAVINGS_GOAL"; payload: SavingsGoal }
   | { type: "ADD_SAVINGS_ENTRY"; payload: SavingsEntry }
   | { type: "MARK_NOTIFICATION_READ"; payload: { id: string } }
+  | { type: "UPSERT_NOTIFICATION"; payload: AppNotification }
   | { type: "HYDRATE"; payload: AppState };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "HYDRATE":
       return action.payload;
-    case "ADD_EVENT":
-      return { ...state, events: [...state.events, action.payload] };
+    case "ADD_EVENT": {
+      const exists = state.events.some((e) => e.id === action.payload.id);
+      return {
+        ...state,
+        events: exists
+          ? state.events.map((e) => (e.id === action.payload.id ? action.payload : e))
+          : [...state.events, action.payload],
+      };
+    }
     case "UPDATE_EVENT":
       return {
         ...state,
@@ -66,8 +88,15 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         events: state.events.filter((e) => e.id !== action.payload.id),
       };
-    case "ADD_TASK":
-      return { ...state, tasks: [...state.tasks, action.payload] };
+    case "ADD_TASK": {
+      const exists = state.tasks.some((t) => t.id === action.payload.id);
+      return {
+        ...state,
+        tasks: exists
+          ? state.tasks.map((t) => (t.id === action.payload.id ? action.payload : t))
+          : [...state.tasks, action.payload],
+      };
+    }
     case "UPDATE_TASK":
       return {
         ...state,
@@ -111,10 +140,37 @@ function reducer(state: AppState, action: Action): AppState {
             : t,
         ),
       };
-    case "ADD_SAVINGS_GOAL":
-      return { ...state, savingsGoals: [...state.savingsGoals, action.payload] };
-    case "ADD_SAVINGS_ENTRY":
-      return { ...state, savingsEntries: [...state.savingsEntries, action.payload] };
+    case "SET_SUBTASK_DONE":
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.id === action.payload.taskId
+            ? {
+                ...t,
+                subtasks: t.subtasks.map((s: Subtask) =>
+                  s.id === action.payload.subtaskId ? { ...s, done: action.payload.done } : s,
+                ),
+                updatedAt: new Date().toISOString(),
+              }
+            : t,
+        ),
+      };
+    case "ADD_SAVINGS_GOAL": {
+      const exists = state.savingsGoals.some((g) => g.id === action.payload.id);
+      return {
+        ...state,
+        savingsGoals: exists
+          ? state.savingsGoals.map((g) => (g.id === action.payload.id ? action.payload : g))
+          : [...state.savingsGoals, action.payload],
+      };
+    }
+    case "ADD_SAVINGS_ENTRY": {
+      const exists = state.savingsEntries.some((e) => e.id === action.payload.id);
+      return {
+        ...state,
+        savingsEntries: exists ? state.savingsEntries : [...state.savingsEntries, action.payload],
+      };
+    }
     case "MARK_NOTIFICATION_READ":
       return {
         ...state,
@@ -122,6 +178,15 @@ function reducer(state: AppState, action: Action): AppState {
           n.id === action.payload.id ? { ...n, read: true } : n,
         ),
       };
+    case "UPSERT_NOTIFICATION": {
+      const exists = state.notifications.some((n) => n.id === action.payload.id);
+      return {
+        ...state,
+        notifications: exists
+          ? state.notifications.map((n) => (n.id === action.payload.id ? action.payload : n))
+          : [action.payload, ...state.notifications],
+      };
+    }
     default:
       return state;
   }
@@ -154,6 +219,15 @@ interface AppStoreValue extends AppState {
   addSavingsGoal: (goal: Omit<SavingsGoal, "id" | "createdAt">) => void;
   addSavingsEntry: (entry: Omit<SavingsEntry, "id" | "createdAt">) => void;
   markNotificationRead: (id: string) => void;
+  /** Appends a device-local notification (e.g. a fired reminder) straight
+   * into the bell list without a round-trip — never synced to other
+   * devices, since it's derived from this device's own reminder check. */
+  addLocalNotification: (notification: { title: string; body: string }) => void;
+  /** Demo mode only — replaces all local data with a previously exported
+   * backup. Returns false (and leaves data untouched) when unsupported,
+   * e.g. in Supabase mode where restoring shared family data from a local
+   * file risks clobbering the other person's device. */
+  restoreFromBackup: (data: AppState) => boolean;
   toasts: Toast[];
   showToast: (message: string) => void;
 }
@@ -167,15 +241,29 @@ const DEFAULT_PREFS: UserPreferences = {
   hasOnboarded: false,
 };
 
-export function AppStoreProvider({ children }: { children: React.ReactNode }) {
+function useToasts() {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const showToast = useCallback((message: string) => {
+    const id = uuid();
+    setToasts((prev) => [...prev, { id, message }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 2600);
+  }, []);
+  return { toasts, showToast };
+}
+
+// ---------------------------------------------------------------------------
+// Demo mode — everything lives in localStorage. Used whenever no Supabase
+// project is configured, so dayli always works standalone.
+// ---------------------------------------------------------------------------
+
+function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadInitialState);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFS);
   const [ready, setReady] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const { toasts, showToast } = useToasts();
 
-  // One-time localStorage hydration: must run client-only (SSR has no
-  // localStorage), so the server/first-paint state is intentionally the
-  // seeded default and this effect reconciles it immediately after mount.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
@@ -190,9 +278,6 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Corrupt or blocked storage: fall back silently to the seeded demo state.
     }
-    // Flip `ready` only after the loaded state/preferences above are queued
-    // in the same batch, so the write-effects below never fire with the
-    // pre-hydration defaults and clobber what's actually on disk.
     setReady(true);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -214,14 +299,6 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       // ignore
     }
   }, [ready, preferences]);
-
-  const showToast = useCallback((message: string) => {
-    const id = uuid();
-    setToasts((prev) => [...prev, { id, message }]);
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 2600);
-  }, []);
 
   const value = useMemo<AppStoreValue>(() => {
     const now = () => new Date().toISOString();
@@ -280,11 +357,322 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         }),
       markNotificationRead: (id) =>
         dispatch({ type: "MARK_NOTIFICATION_READ", payload: { id } }),
+      addLocalNotification: (notification) =>
+        dispatch({
+          type: "UPSERT_NOTIFICATION",
+          payload: { ...notification, id: uuid(), read: false, createdAt: now() },
+        }),
+      restoreFromBackup: (data) => {
+        dispatch({ type: "HYDRATE", payload: data });
+        return true;
+      },
     };
   }, [state, ready, preferences, toasts, showToast]);
 
+  return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
+}
+
+// ---------------------------------------------------------------------------
+// Supabase mode — reads/writes go straight to Postgres; a Realtime
+// subscription keeps every open device (Domenico's and Elisabeth's phones)
+// in sync. Every mutation awaits the write, dispatches locally with the
+// server-confirmed row, and the following Realtime echo of that same
+// change is a harmless, idempotent no-op (see the reducer above).
+// ---------------------------------------------------------------------------
+
+function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
+  const { ready: authReady, session, profile, personId } = useSupabaseAuth();
+  const [state, dispatch] = useReducer(reducer, EMPTY_STATE);
+  const [categories, setCategories] = useState<CategoryRef[]>([]);
+  const [dataReady, setDataReady] = useState(false);
+  const [userPrefs, setUserPrefs] = useState<{ reducedMotionOverride: boolean | null; calendarFilters: Assignee[] | "alle" }>({
+    reducedMotionOverride: null,
+    calendarFilters: "alle",
+  });
+  const { toasts, showToast } = useToasts();
+  const stateRef = useRef(state);
+  const categoriesRef = useRef(categories);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
+
+  const familyId = profile?.familyId ?? null;
+
+  // Initial data load once we know which family we're in.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!familyId) {
+      dispatch({ type: "HYDRATE", payload: EMPTY_STATE });
+      setDataReady(false);
+      return;
+    }
+    let cancelled = false;
+    setDataReady(false);
+    repo.fetchFamilyData(familyId).then(
+      (data) => {
+        if (cancelled) return;
+        setCategories(data.categories);
+        dispatch({
+          type: "HYDRATE",
+          payload: {
+            events: data.events,
+            tasks: data.tasks,
+            savingsGoals: data.savingsGoals,
+            savingsEntries: data.savingsEntries,
+            notifications: data.notifications,
+          },
+        });
+        setDataReady(true);
+      },
+      () => setDataReady(true),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [familyId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Own preferences row (private, never shared via Realtime).
+  useEffect(() => {
+    if (!profile) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    let cancelled = false;
+    supabase
+      .from("user_preferences")
+      .select("reduced_motion_override, calendar_filters")
+      .eq("profile_id", profile.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setUserPrefs({
+          reducedMotionOverride: data.reduced_motion_override,
+          calendarFilters: (data.calendar_filters as Assignee[] | "alle") ?? "alle",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile]);
+
+  // Realtime: mirror every change either phone makes.
+  useEffect(() => {
+    if (!familyId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`family-${familyId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "events", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            dispatch({ type: "DELETE_EVENT", payload: { id: (payload.old as { id: string }).id } });
+          } else {
+            const event = repo.rowToEvent(payload.new as Record<string, unknown>, categoriesRef.current);
+            dispatch({ type: payload.eventType === "INSERT" ? "ADD_EVENT" : "UPDATE_EVENT", payload: event });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            dispatch({ type: "DELETE_TASK", payload: { id: (payload.old as { id: string }).id } });
+          } else {
+            const row = payload.new as Record<string, unknown>;
+            const existing = stateRef.current.tasks.find((t) => t.id === row.id);
+            const task = repo.rowToTask(row, existing?.subtasks ?? []);
+            dispatch({ type: payload.eventType === "INSERT" ? "ADD_TASK" : "UPDATE_TASK", payload: task });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_subtasks" },
+        (payload) => {
+          const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as Record<string, unknown>;
+          const taskId = row.task_id as string;
+          if (!stateRef.current.tasks.some((t) => t.id === taskId)) return;
+          if (payload.eventType === "DELETE") {
+            dispatch({
+              type: "UPDATE_TASK",
+              payload: {
+                ...stateRef.current.tasks.find((t) => t.id === taskId)!,
+                subtasks: stateRef.current.tasks
+                  .find((t) => t.id === taskId)!
+                  .subtasks.filter((s) => s.id !== row.id),
+              },
+            });
+          } else {
+            dispatch({
+              type: "SET_SUBTASK_DONE",
+              payload: { taskId, subtaskId: row.id as string, done: row.done as boolean },
+            });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "savings_goals", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType !== "DELETE") {
+            dispatch({ type: "ADD_SAVINGS_GOAL", payload: repo.rowToGoal(payload.new as Record<string, unknown>) });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "savings_entries" },
+        (payload) => {
+          dispatch({ type: "ADD_SAVINGS_ENTRY", payload: repo.rowToEntry(payload.new as Record<string, unknown>) });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType !== "DELETE") {
+            dispatch({
+              type: "UPSERT_NOTIFICATION",
+              payload: repo.rowToNotification(payload.new as Record<string, unknown>),
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [familyId]);
+
+  const value = useMemo<AppStoreValue>(() => {
+    const requireFamily = () => {
+      if (!familyId || !profile) throw new Error("no active family");
+      return { familyId, profileId: profile.id };
+    };
+
+    return {
+      ...state,
+      ready: authReady && (!session || dataReady),
+      preferences: {
+        activeProfile: personId ?? "domenico",
+        reducedMotionOverride: userPrefs.reducedMotionOverride,
+        calendarFilters: userPrefs.calendarFilters,
+        hasOnboarded: Boolean(session && profile?.familyId),
+      },
+      toasts,
+      showToast,
+      setActiveProfile: () => {
+        // Identity comes from the signed-in account in Supabase mode.
+      },
+      setCalendarFilters: (filters) => {
+        setUserPrefs((p) => ({ ...p, calendarFilters: filters }));
+        if (!profile) return;
+        void getSupabaseClient()
+          ?.from("user_preferences")
+          .update({ calendar_filters: filters })
+          .eq("profile_id", profile.id);
+      },
+      setReducedMotionOverride: (value) => {
+        setUserPrefs((p) => ({ ...p, reducedMotionOverride: value }));
+        if (!profile) return;
+        void getSupabaseClient()
+          ?.from("user_preferences")
+          .update({ reduced_motion_override: value })
+          .eq("profile_id", profile.id);
+      },
+      addEvent: (event) => {
+        const { familyId, profileId } = requireFamily();
+        repo.insertEvent(familyId, categoriesRef.current, profileId, event).then((row) =>
+          dispatch({ type: "ADD_EVENT", payload: row }),
+        );
+      },
+      updateEvent: (id, patch) => {
+        const existing = stateRef.current.events.find((e) => e.id === id);
+        if (!existing) return;
+        const merged = { ...existing, ...patch, updatedAt: new Date().toISOString() };
+        dispatch({ type: "UPDATE_EVENT", payload: merged });
+        void repo.updateEventRow(id, categoriesRef.current, patch);
+      },
+      deleteEvent: (id) => {
+        dispatch({ type: "DELETE_EVENT", payload: { id } });
+        void repo.deleteEventRow(id);
+      },
+      addTask: (task) => {
+        const { familyId, profileId } = requireFamily();
+        repo.insertTask(familyId, profileId, task).then((row) =>
+          dispatch({ type: "ADD_TASK", payload: row }),
+        );
+      },
+      updateTask: (id, patch) => {
+        const existing = stateRef.current.tasks.find((t) => t.id === id);
+        if (!existing) return;
+        const merged = { ...existing, ...patch, updatedAt: new Date().toISOString() };
+        dispatch({ type: "UPDATE_TASK", payload: merged });
+        void repo.updateTaskRow(id, patch);
+      },
+      deleteTask: (id) => {
+        dispatch({ type: "DELETE_TASK", payload: { id } });
+        void repo.deleteTaskRow(id);
+      },
+      toggleTask: (id) => {
+        const existing = stateRef.current.tasks.find((t) => t.id === id);
+        if (!existing) return;
+        const done = !existing.done;
+        const doneAt = done ? new Date().toISOString() : null;
+        dispatch({ type: "UPDATE_TASK", payload: { ...existing, done, doneAt, updatedAt: new Date().toISOString() } });
+        void repo.updateTaskRow(id, { done, doneAt });
+      },
+      toggleSubtask: (taskId, subtaskId) => {
+        const task = stateRef.current.tasks.find((t) => t.id === taskId);
+        const subtask = task?.subtasks.find((s) => s.id === subtaskId);
+        if (!subtask) return;
+        const done = !subtask.done;
+        dispatch({ type: "SET_SUBTASK_DONE", payload: { taskId, subtaskId, done } });
+        void repo.toggleSubtaskRow(subtaskId, done);
+      },
+      addSavingsGoal: (goal) => {
+        const { familyId, profileId } = requireFamily();
+        repo.insertSavingsGoal(familyId, profileId, goal).then((row) =>
+          dispatch({ type: "ADD_SAVINGS_GOAL", payload: row }),
+        );
+      },
+      addSavingsEntry: (entry) => {
+        repo.insertSavingsEntry(profile?.id ?? null, entry).then((row) =>
+          dispatch({ type: "ADD_SAVINGS_ENTRY", payload: row }),
+        );
+      },
+      markNotificationRead: (id) => {
+        dispatch({ type: "MARK_NOTIFICATION_READ", payload: { id } });
+        void repo.markNotificationReadRow(id);
+      },
+      addLocalNotification: (notification) =>
+        dispatch({
+          type: "UPSERT_NOTIFICATION",
+          payload: { ...notification, id: uuid(), read: false, createdAt: new Date().toISOString() },
+        }),
+      restoreFromBackup: () => false,
+    };
+  }, [state, authReady, session, dataReady, personId, userPrefs, toasts, showToast, familyId, profile]);
+
+  return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
+}
+
+export function AppStoreProvider({ children }: { children: React.ReactNode }) {
+  if (!isSupabaseConfigured) {
+    return <DemoAppStoreProvider>{children}</DemoAppStoreProvider>;
+  }
   return (
-    <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>
+    <SupabaseAuthProvider>
+      <SupabaseAppStoreProvider>{children}</SupabaseAppStoreProvider>
+    </SupabaseAuthProvider>
   );
 }
 

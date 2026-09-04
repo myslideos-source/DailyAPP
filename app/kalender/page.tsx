@@ -5,6 +5,8 @@ import {
   addDays,
   addMonths,
   addWeeks,
+  endOfMonth,
+  endOfWeek,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
@@ -18,12 +20,15 @@ import { DayTimeline } from "@/components/today/DayTimeline";
 import { useAppStore } from "@/lib/store/app-store";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { filterEvents, matchesSearch, type CalendarFilter } from "@/lib/calendar-filter";
+import { expandEventOccurrences, expandEventsForDay } from "@/lib/recurrence";
 import {
   formatLongDate,
   formatMonthYear,
   formatShortDate,
   toISODate,
 } from "@/lib/date-utils";
+
+const AGENDA_HORIZON_DAYS = 180;
 
 type ViewMode = "tag" | "woche" | "monat" | "agenda";
 
@@ -66,6 +71,27 @@ export default function KalenderPage() {
 
   const monthStart = startOfMonth(anchor);
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
+
+  const monthGridEvents = useMemo(() => {
+    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const gridEnd = endOfWeek(endOfMonth(monthStart), { weekStartsOn: 1 });
+    return expandEventOccurrences(filtered, toISODate(gridStart), toISODate(gridEnd));
+  }, [filtered, monthStart]);
+
+  const weekAgendaEvents = useMemo(
+    () => expandEventOccurrences(filtered, toISODate(weekStart), toISODate(addDays(weekStart, 6))),
+    [filtered, weekStart],
+  );
+
+  const dayEvents = useMemo(
+    () => expandEventsForDay(filtered, toISODate(selectedDate)),
+    [filtered, selectedDate],
+  );
+
+  const agendaEvents = useMemo(
+    () => expandEventOccurrences(filtered, toISODate(anchor), toISODate(addDays(anchor, AGENDA_HORIZON_DAYS))),
+    [filtered, anchor],
+  );
 
   const periodLabel =
     view === "monat"
@@ -162,13 +188,13 @@ export default function KalenderPage() {
                     setAnchor(d);
                     if (!isDesktop) setView("tag");
                   }}
-                  events={filtered}
+                  events={monthGridEvents}
                 />
               )}
-              {view === "woche" && <WeekAgenda weekStart={weekStart} events={filtered} />}
+              {view === "woche" && <WeekAgenda weekStart={weekStart} events={weekAgendaEvents} />}
               {view === "tag" && (
                 <DayTimeline
-                  events={filtered.filter((e) => e.date === toISODate(selectedDate))}
+                  events={dayEvents}
                   selectedDate={selectedDate}
                   direction={direction}
                   animate
@@ -180,9 +206,7 @@ export default function KalenderPage() {
                   }}
                 />
               )}
-              {view === "agenda" && (
-                <AgendaList events={filtered.filter((e) => e.date >= toISODate(anchor))} />
-              )}
+              {view === "agenda" && <AgendaList events={agendaEvents} />}
             </div>
           </>
         )}
@@ -195,7 +219,7 @@ export default function KalenderPage() {
               {formatLongDate(selectedDate)}
             </p>
             <DayTimeline
-              events={filtered.filter((e) => e.date === toISODate(selectedDate))}
+              events={dayEvents}
               selectedDate={selectedDate}
               direction={1}
               animate

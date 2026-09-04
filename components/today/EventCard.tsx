@@ -101,7 +101,7 @@ export function EventCard({ event, index }: { event: CalendarEvent; index: numbe
               <PersonAvatar assignee={event.assignee} size="sm" />
               <button
                 type="button"
-                onClick={() => openEditEvent(event)}
+                onClick={() => openEditEvent(event.id)}
                 className="flex min-h-[36px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-medium"
                 style={{ borderColor: "var(--dl-border-strong)", color: "var(--dl-text)" }}
               >

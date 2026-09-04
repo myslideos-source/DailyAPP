@@ -4,6 +4,7 @@
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
@@ -73,6 +74,7 @@ $$;
 create or replace function public.seed_default_categories(target_family_id uuid)
 returns void
 language sql
+set search_path = public
 as $$
   insert into public.categories (family_id, key, label, icon, sort_order)
   values

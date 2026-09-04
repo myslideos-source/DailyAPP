@@ -6,6 +6,7 @@ import { CalendarX } from "lucide-react";
 import { EventRow } from "@/components/calendar/EventRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatShortDate, isToday, relativeDayLabel, toISODate } from "@/lib/date-utils";
+import { occurrenceKey } from "@/lib/recurrence";
 import type { CalendarEvent } from "@/lib/types";
 
 export function WeekAgenda({ weekStart, events }: { weekStart: Date; events: CalendarEvent[] }) {
@@ -38,7 +39,7 @@ export function WeekAgenda({ weekStart, events }: { weekStart: Date; events: Cal
             ) : (
               <div className="flex flex-col gap-2">
                 {dayEvents.map((e, i) => (
-                  <EventRow key={e.id} event={e} index={i} />
+                  <EventRow key={occurrenceKey(e)} event={e} index={i} />
                 ))}
               </div>
             )}
