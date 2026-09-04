@@ -1,0 +1,30 @@
+import type { Assignee, EventCategory } from "./types";
+import { CATEGORIES, PROFILES } from "./demo-data";
+
+export function assigneeColor(assignee: Assignee): string {
+  if (assignee === "domenico") return "var(--dl-domenico)";
+  if (assignee === "elisabeth") return "var(--dl-elisabeth)";
+  return "var(--dl-together)";
+}
+
+export function assigneeSoftColor(assignee: Assignee): string {
+  if (assignee === "domenico") return "var(--dl-domenico-soft)";
+  if (assignee === "elisabeth") return "var(--dl-elisabeth-soft)";
+  return "var(--dl-together-soft)";
+}
+
+export function assigneeLabel(assignee: Assignee): string {
+  if (assignee === "domenico") return PROFILES.domenico.name;
+  if (assignee === "elisabeth") return PROFILES.elisabeth.name;
+  return "Gemeinsam";
+}
+
+export function assigneeInitials(assignee: Assignee): string[] {
+  if (assignee === "domenico") return ["D"];
+  if (assignee === "elisabeth") return ["E"];
+  return ["D", "E"];
+}
+
+export function categoryLabel(category: EventCategory): string {
+  return CATEGORIES.find((c) => c.id === category)?.label ?? category;
+}

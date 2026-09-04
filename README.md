@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# dayli
 
-## Getting Started
+Der private Familienkalender von Domenico und Elisabeth — Termine, Aufgaben,
+gemeinsame Zeit und Sparziele an einem warmen, ruhigen Ort. Gebaut als
+installierbare PWA mit Next.js (App Router), TypeScript, Tailwind CSS,
+Motion für React und Supabase.
 
-First, run the development server:
+## Entwicklung
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Die App öffnet unter `http://localhost:3000` und läuft **sofort mit lokalen
+Demo-Daten** — es ist kein Supabase-Projekt erforderlich. Alle Termine,
+Aufgaben und Sparziele werden im `localStorage` des Browsers gespeichert.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Mit Supabase verbinden (optional)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Ein Supabase-Projekt anlegen und `supabase/migrations/*.sql` ausführen
+   (per Supabase CLI: `supabase db push`, oder im SQL-Editor des Dashboards
+   in der angegebenen Reihenfolge).
+2. `.env.example` nach `.env.local` kopieren und mit den Projektwerten
+   (Settings → API) befüllen.
+3. Optional lokal Demo-Accounts anlegen: `supabase db reset` führt
+   `supabase/seed.sql` aus und erstellt die beiden Demo-Logins
+   `domenico@dayli.app` / `elisabeth@dayli.app` (Passwort `dayli-demo`).
 
-## Learn More
+Ohne gesetzte Umgebungsvariablen bleibt die App automatisch im Demo-Modus.
 
-To learn more about Next.js, take a look at the following resources:
+## Skripte
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `npm run dev` – Entwicklungsserver
+- `npm run build` – Production-Build
+- `npm run start` – Production-Server
+- `npm run lint` – ESLint
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Projektstruktur
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/                 Next.js App Router Routen (Heute, Kalender, Aufgaben, Mehr, Login)
+components/          UI-Komponenten nach Bereich gruppiert
+lib/                 Typen, Demo-Daten, State (React Context), Supabase-Clients
+public/brand/        Original-Logo (unverändert)
+public/icons/        Generierte PWA-Icon-Größen
+supabase/migrations/ SQL-Schema, RLS-Policies, Funktionen
+supabase/seed.sql    Lokale Demo-Daten für Supabase
+```

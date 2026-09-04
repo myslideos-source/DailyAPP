@@ -1,26 +1,145 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------- */
+/* dayli design tokens                                                    */
+/* ---------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --dl-bg: #080a13;
+  --dl-aubergine: #17101d;
+  --dl-card: #211724;
+  --dl-card-raised: #271b2b;
+  --dl-border: rgba(246, 240, 234, 0.08);
+  --dl-border-strong: rgba(246, 240, 234, 0.14);
+  --dl-text: #f6f0ea;
+  --dl-text-dim: rgba(246, 240, 234, 0.62);
+  --dl-text-faint: rgba(246, 240, 234, 0.38);
+
+  --dl-domenico: #63d8f4;
+  --dl-domenico-soft: rgba(99, 216, 244, 0.16);
+  --dl-elisabeth: #ea82b7;
+  --dl-elisabeth-soft: rgba(234, 130, 183, 0.16);
+  --dl-together: #b488e8;
+  --dl-together-soft: rgba(180, 136, 232, 0.16);
+
+  --dl-danger: #f0876c;
+  --dl-success: #7fd8a6;
+
+  --dl-radius-sm: 10px;
+  --dl-radius-md: 16px;
+  --dl-radius-lg: 22px;
+  --dl-radius-xl: 28px;
+
+  --dl-safe-top: env(safe-area-inset-top, 0px);
+  --dl-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --dl-safe-left: env(safe-area-inset-left, 0px);
+  --dl-safe-right: env(safe-area-inset-right, 0px);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--dl-bg);
+  --color-aubergine: var(--dl-aubergine);
+  --color-card: var(--dl-card);
+  --color-card-raised: var(--dl-card-raised);
+  --color-border: var(--dl-border);
+  --color-border-strong: var(--dl-border-strong);
+  --color-text: var(--dl-text);
+  --color-text-dim: var(--dl-text-dim);
+  --color-text-faint: var(--dl-text-faint);
+
+  --color-domenico: var(--dl-domenico);
+  --color-domenico-soft: var(--dl-domenico-soft);
+  --color-elisabeth: var(--dl-elisabeth);
+  --color-elisabeth-soft: var(--dl-elisabeth-soft);
+  --color-together: var(--dl-together);
+  --color-together-soft: var(--dl-together-soft);
+
+  --color-danger: var(--dl-danger);
+  --color-success: var(--dl-success);
+
+  --font-sans: var(--font-ui);
+
+  --radius-sm: var(--dl-radius-sm);
+  --radius-md: var(--dl-radius-md);
+  --radius-lg: var(--dl-radius-lg);
+  --radius-xl: var(--dl-radius-xl);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--dl-bg);
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--dl-bg);
+  color: var(--dl-text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, var(--font-ui), "Segoe UI", Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* Faint grain for material depth, applied once as a fixed overlay so it
+   never taxes scroll compositing. */
+.dl-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 160px 160px;
+}
+
+.safe-top {
+  padding-top: var(--dl-safe-top);
+}
+.safe-bottom {
+  padding-bottom: var(--dl-safe-bottom);
+}
+.pt-safe-header {
+  padding-top: calc(var(--dl-safe-top) + 0.75rem);
+}
+.pb-safe-nav {
+  padding-bottom: calc(var(--dl-safe-bottom) + 0.5rem);
+}
+
+::selection {
+  background: var(--dl-together-soft);
+  color: var(--dl-text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--dl-together);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+button,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Scrollbars stay invisible but functional — this app never wants to look
+   like a browser chrome around a webpage. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
