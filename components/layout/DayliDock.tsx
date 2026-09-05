@@ -59,7 +59,7 @@ export function DayliDock() {
       <DockBackdrop show={quickCreateOpen} onClose={close} />
       <div
         className="fixed inset-x-0 z-40 flex justify-center px-4 md:hidden"
-        style={{ bottom: "calc(12px + env(safe-area-inset-bottom))" }}
+        style={{ bottom: "calc(12px + env(safe-area-inset-bottom, 0px) + var(--dl-vv-bottom-gap, 0px))" }}
       >
         <nav
           aria-label="Hauptnavigation"
