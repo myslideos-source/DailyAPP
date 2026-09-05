@@ -26,7 +26,7 @@ export function Header({ onOpenNotifications }: { onOpenNotifications: () => voi
         <motion.div
           layoutId={reducedMotion ? undefined : "dayli-logo"}
           transition={{ type: "spring", stiffness: 300, damping: 32 }}
-          className="relative h-7 w-[68px]"
+          className="relative h-10 w-[100px]"
         >
           <LogoAmbientGlow />
           <Image
@@ -34,7 +34,7 @@ export function Header({ onOpenNotifications }: { onOpenNotifications: () => voi
             alt="dayli"
             fill
             priority
-            sizes="68px"
+            sizes="100px"
             className="object-contain object-left"
           />
         </motion.div>
