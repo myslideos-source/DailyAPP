@@ -101,7 +101,7 @@ export default function AufgabenPage() {
                   key={f.value}
                   type="button"
                   onClick={() => setFilter(f.value)}
-                  className="shrink-0 min-h-[36px] rounded-full border px-3.5 py-1.5 text-[13px] font-medium"
+                  className="shrink-0 min-h-[36px] rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-300"
                   style={
                     active
                       ? { borderColor: color, background: `color-mix(in srgb, ${color} 16%, transparent)`, color }

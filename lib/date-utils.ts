@@ -1,5 +1,6 @@
 import { de } from "date-fns/locale";
 import {
+  differenceInCalendarDays,
   format,
   isSameDay,
   isToday,
@@ -41,6 +42,16 @@ export function relativeDayLabel(date: Date) {
   if (isToday(date)) return "Heute";
   if (isTomorrow(date)) return "Morgen";
   return format(date, "EEEE", { locale: de });
+}
+
+/** Lowercase, mid-sentence variant of relativeDayLabel — for reminder/
+ * notification copy like "Höhenplan bereitlegen (morgen)." */
+export function relativeDayPhrase(date: Date) {
+  if (isToday(date)) return "heute";
+  if (isTomorrow(date)) return "morgen";
+  const diff = differenceInCalendarDays(date, new Date());
+  if (diff > 1 && diff < 7) return `am ${format(date, "EEEE", { locale: de })}`;
+  return `am ${format(date, "d. MMMM", { locale: de })}`;
 }
 
 export { isSameDay, isToday, isTomorrow };

@@ -38,7 +38,7 @@ export function FilterBar({
             key={opt.label}
             type="button"
             onClick={() => onChange(opt.value)}
-            className="shrink-0 min-h-[36px] rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors"
+            className="shrink-0 min-h-[36px] rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-300"
             style={
               active
                 ? { borderColor: color, background: `color-mix(in srgb, ${color} 16%, transparent)`, color }
@@ -53,7 +53,7 @@ export function FilterBar({
         type="button"
         onClick={onToggleSearch}
         aria-label={searchOpen ? "Suche schließen" : "Suchen"}
-        className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border"
+        className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors duration-300"
         style={{
           borderColor: searchOpen ? "var(--dl-together)" : "var(--dl-border)",
           color: searchOpen ? "var(--dl-together)" : "var(--dl-text-dim)",

@@ -2,35 +2,52 @@
 
 import { useCallback } from "react";
 import { useAppStore } from "@/lib/store/app-store";
-import { useReminderScheduler } from "@/lib/hooks/useReminderScheduler";
+import { useReminderScheduler, useTaskReminderScheduler } from "@/lib/hooks/useReminderScheduler";
 import { fireNotification, useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
-import { assigneeLabel } from "@/lib/theme";
+import { buildEventReminderMessage, buildTaskReminderMessage } from "@/lib/reminder-messages";
 
-/** Mounted once at the app root — checks upcoming events with a reminder
- * set roughly every 30s while this tab is open, and surfaces due ones as
- * a toast, a bell notification, and (with permission) a real OS
- * notification. See /mehr/erinnerungen for the background-delivery caveat. */
+/** Mounted once at the app root — checks upcoming events and tasks with a
+ * reminder set roughly every 30s while this tab is open, and surfaces due
+ * ones as a toast, a bell notification, and (with permission) a real OS
+ * notification. In Supabase mode this is a foreground-only complement to
+ * the real background push pipeline (see /mehr/erinnerungen); in demo mode
+ * it's the only delivery path there is. */
 export function ReminderScheduler() {
-  const { events, ready, addLocalNotification, showToast } = useAppStore();
+  const { events, tasks, ready, addLocalNotification, showToast } = useAppStore();
   const { permission } = useNotificationPermission();
 
-  const onDue = useCallback(
+  const onEventDue = useCallback(
     (event: (typeof events)[number]) => {
-      const title = event.title;
-      const body = event.allDay
-        ? "Heute · " + assigneeLabel(event.assignee)
-        : `${event.startTime} Uhr · ${assigneeLabel(event.assignee)}`;
+      const openPrepCount = tasks.filter((t) => t.linkedEventId === event.id && !t.done).length;
+      const title = `Erinnerung: ${event.title}`;
+      const body = buildEventReminderMessage(event, openPrepCount);
 
-      addLocalNotification({ title: `Erinnerung: ${title}`, body });
-      showToast(`Erinnerung: ${title}`);
+      addLocalNotification({ title, body });
+      showToast(title);
       if (permission === "granted") {
-        void fireNotification(`Erinnerung: ${title}`, { body, tag: event.id });
+        void fireNotification(title, { body, tag: event.id });
       }
     },
-    [addLocalNotification, showToast, permission],
+    [tasks, addLocalNotification, showToast, permission],
   );
 
-  useReminderScheduler(events, ready, onDue);
+  const onTaskDue = useCallback(
+    (task: (typeof tasks)[number]) => {
+      const linkedEvent = task.linkedEventId ? events.find((e) => e.id === task.linkedEventId) : null;
+      const title = `Erinnerung: ${task.title}`;
+      const body = buildTaskReminderMessage(task, linkedEvent);
+
+      addLocalNotification({ title, body });
+      showToast(title);
+      if (permission === "granted") {
+        void fireNotification(title, { body, tag: task.id });
+      }
+    },
+    [events, addLocalNotification, showToast, permission],
+  );
+
+  useReminderScheduler(events, ready, onEventDue);
+  useTaskReminderScheduler(tasks, ready, onTaskDue);
 
   return null;
 }

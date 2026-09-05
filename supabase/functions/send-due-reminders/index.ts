@@ -98,27 +98,36 @@ Deno.serve(async (req: Request) => {
   let sent = 0;
 
   for (const reminder of dueReminders) {
+    // reminder.message already carries the full, prep-task-aware copy
+    // (built client-side in lib/reminder-messages.ts when the reminder row
+    // was written) — only the title needs a fresh lookup of the title.
     let title = "dayli Erinnerung";
-    let body = reminder.message ?? "";
+    const body = reminder.message ?? "";
     let recurrenceRule: string | null = null;
 
     if (reminder.event_id) {
       const { data: event } = await supabase
         .from("events")
-        .select("title, start_time, location, recurrence_rule")
+        .select("title, recurrence_rule")
         .eq("id", reminder.event_id)
         .maybeSingle();
       if (event) {
         title = `Erinnerung: ${event.title}`;
-        body = event.start_time
-          ? `${String(event.start_time).slice(0, 5)} Uhr${event.location ? " · " + event.location : ""}`
-          : (reminder.message ?? "");
         recurrenceRule = event.recurrence_rule;
       }
     } else if (reminder.task_id) {
       const { data: task } = await supabase.from("tasks").select("title").eq("id", reminder.task_id).maybeSingle();
       if (task) title = `Erinnerung: ${task.title}`;
     }
+
+    // Internal/in-app notification first — this is what the bell shows,
+    // independent of whether any device has push enabled at all.
+    await supabase.from("notifications").insert({
+      family_id: reminder.family_id,
+      profile_id: null,
+      title,
+      body,
+    });
 
     const sig = await hmacHex(secrets.reminder_cron_secret, reminder.id);
 

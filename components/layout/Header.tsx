@@ -6,6 +6,7 @@ import { Bell } from "lucide-react";
 import { useAppStore } from "@/lib/store/app-store";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { IconButton } from "@/components/ui/IconButton";
+import { LogoAmbientGlow } from "@/components/brand/LogoAmbientGlow";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 
 export function Header({ onOpenNotifications }: { onOpenNotifications: () => void }) {
@@ -27,6 +28,7 @@ export function Header({ onOpenNotifications }: { onOpenNotifications: () => voi
           transition={{ type: "spring", stiffness: 300, damping: 32 }}
           className="relative h-7 w-[68px]"
         >
+          <LogoAmbientGlow />
           <Image
             src="/brand/logo.png"
             alt="dayli"

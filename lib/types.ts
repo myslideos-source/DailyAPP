@@ -74,6 +74,8 @@ export interface TaskItem {
   recurrence: RecurrenceRule;
   isShopping: boolean;
   linkedEventId?: string | null;
+  reminderMinutesBefore?: number | null;
+  sortOrder: number;
   subtasks: Subtask[];
   createdAt: string;
   updatedAt: string;

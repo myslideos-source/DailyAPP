@@ -82,11 +82,25 @@ export function DayTimeline({
                 }
               />
             ) : (
-              <ul>
-                {sorted.map((event, i) => (
-                  <EventCard key={event.id} event={event} index={i} />
-                ))}
-              </ul>
+              <div className="relative">
+                {/* The timeline "draws" top-to-bottom before the event dots
+                    and content stagger in — scaleY keeps this to a single
+                    compositor-friendly transform, never a layout-affecting
+                    height animation (spec 10.3). */}
+                <motion.span
+                  aria-hidden
+                  className="absolute left-[7px] top-2 bottom-6 w-px"
+                  style={{ background: "var(--dl-border)", transformOrigin: "top" }}
+                  initial={reducedMotion ? { scaleY: 1 } : { scaleY: 0 }}
+                  animate={{ scaleY: 1 }}
+                  transition={{ duration: reducedMotion ? 0.01 : 0.5, ease: "easeOut" }}
+                />
+                <ul>
+                  {sorted.map((event, i) => (
+                    <EventCard key={event.id} event={event} index={i} />
+                  ))}
+                </ul>
+              </div>
             )}
           </motion.div>
         </AnimatePresence>

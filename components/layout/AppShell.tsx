@@ -10,9 +10,12 @@ import { ToastStack } from "@/components/ui/Toast";
 import { QuickAddMenu } from "@/components/sheets/QuickAddMenu";
 import { EventFormSheet } from "@/components/sheets/EventFormSheet";
 import { TaskFormSheet } from "@/components/sheets/TaskFormSheet";
+import { QuickAddNaturalSheet } from "@/components/sheets/QuickAddNaturalSheet";
+import { QuickAddPreviewSheet } from "@/components/sheets/QuickAddPreviewSheet";
 import { NotificationsSheet } from "@/components/sheets/NotificationsSheet";
 import { ReminderScheduler } from "@/components/pwa/ReminderScheduler";
 import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
+import { SavePulseProvider } from "@/lib/store/save-pulse-context";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSplash } from "@/lib/store/splash-context";
 import { toISODate } from "@/lib/date-utils";
@@ -46,6 +49,11 @@ function SheetRenderer() {
       <TaskFormSheet open={sheet?.kind === "task"} onClose={close} kind="task" />
       <TaskFormSheet open={sheet?.kind === "reminder"} onClose={close} kind="reminder" />
       <TaskFormSheet open={sheet?.kind === "shopping"} onClose={close} kind="shopping" />
+      <QuickAddNaturalSheet open={sheet?.kind === "natural"} onClose={close} />
+      <QuickAddPreviewSheet
+        open={sheet?.kind === "naturalPreview"}
+        draft={sheet?.kind === "naturalPreview" ? sheet.draft : null}
+      />
       <NotificationsSheet open={sheet?.kind === "notifications"} onClose={close} />
     </>
   );
@@ -98,8 +106,10 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <SheetProvider>
-      <ShellChrome>{children}</ShellChrome>
-    </SheetProvider>
+    <SavePulseProvider>
+      <SheetProvider>
+        <ShellChrome>{children}</ShellChrome>
+      </SheetProvider>
+    </SavePulseProvider>
   );
 }

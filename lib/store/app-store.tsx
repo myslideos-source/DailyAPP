@@ -200,6 +200,7 @@ function loadInitialState(): AppState {
 interface Toast {
   id: string;
   message: string;
+  action?: { label: string; onClick: () => void };
 }
 
 interface AppStoreValue extends AppState {
@@ -208,10 +209,14 @@ interface AppStoreValue extends AppState {
   setActiveProfile: (id: PersonId) => void;
   setCalendarFilters: (filters: Assignee[] | "alle") => void;
   setReducedMotionOverride: (value: boolean | null) => void;
-  addEvent: (event: Omit<CalendarEvent, "id" | "createdAt" | "updatedAt">) => void;
+  addEvent: (event: Omit<CalendarEvent, "id" | "createdAt" | "updatedAt">) => Promise<CalendarEvent>;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
-  deleteEvent: (id: string) => void;
-  addTask: (task: Omit<TaskItem, "id" | "createdAt" | "updatedAt">) => void;
+  /** `deleteLinkedTasks` decides the fate of prep tasks pointing at this
+   * event via linkedEventId: true deletes them too, false only detaches
+   * them (linkedEventId cleared, task itself kept). Omit when the event
+   * has no linked tasks — the caller is expected to ask first otherwise. */
+  deleteEvent: (id: string, deleteLinkedTasks?: boolean) => void;
+  addTask: (task: Omit<TaskItem, "id" | "createdAt" | "updatedAt" | "sortOrder"> & { sortOrder?: number }) => Promise<TaskItem>;
   updateTask: (id: string, patch: Partial<TaskItem>) => void;
   deleteTask: (id: string) => void;
   toggleTask: (id: string) => void;
@@ -229,7 +234,7 @@ interface AppStoreValue extends AppState {
    * file risks clobbering the other person's device. */
   restoreFromBackup: (data: AppState) => boolean;
   toasts: Toast[];
-  showToast: (message: string) => void;
+  showToast: (message: string, action?: { label: string; onClick: () => void }) => void;
 }
 
 const AppStoreContext = createContext<AppStoreValue | null>(null);
@@ -243,12 +248,15 @@ const DEFAULT_PREFS: UserPreferences = {
 
 function useToasts() {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const showToast = useCallback((message: string) => {
+  const showToast = useCallback((message: string, action?: { label: string; onClick: () => void }) => {
     const id = uuid();
-    setToasts((prev) => [...prev, { id, message }]);
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 2600);
+    setToasts((prev) => [...prev, { id, message, action }]);
+    window.setTimeout(
+      () => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      },
+      action ? 4200 : 2600,
+    );
   }, []);
   return { toasts, showToast };
 }
@@ -314,11 +322,11 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
         setPreferences((p) => ({ ...p, calendarFilters: filters })),
       setReducedMotionOverride: (value) =>
         setPreferences((p) => ({ ...p, reducedMotionOverride: value })),
-      addEvent: (event) =>
-        dispatch({
-          type: "ADD_EVENT",
-          payload: { ...event, id: uuid(), createdAt: now(), updatedAt: now() },
-        }),
+      addEvent: (event) => {
+        const created: CalendarEvent = { ...event, id: uuid(), createdAt: now(), updatedAt: now() };
+        dispatch({ type: "ADD_EVENT", payload: created });
+        return Promise.resolve(created);
+      },
       updateEvent: (id, patch) => {
         const existing = state.events.find((e) => e.id === id);
         if (!existing) return;
@@ -327,12 +335,28 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
           payload: { ...existing, ...patch, updatedAt: now() },
         });
       },
-      deleteEvent: (id) => dispatch({ type: "DELETE_EVENT", payload: { id } }),
-      addTask: (task) =>
-        dispatch({
-          type: "ADD_TASK",
-          payload: { ...task, id: uuid(), createdAt: now(), updatedAt: now() },
-        }),
+      deleteEvent: (id, deleteLinkedTasks) => {
+        dispatch({ type: "DELETE_EVENT", payload: { id } });
+        const linked = state.tasks.filter((t) => t.linkedEventId === id);
+        for (const task of linked) {
+          if (deleteLinkedTasks) {
+            dispatch({ type: "DELETE_TASK", payload: { id: task.id } });
+          } else {
+            dispatch({ type: "UPDATE_TASK", payload: { ...task, linkedEventId: null, updatedAt: now() } });
+          }
+        }
+      },
+      addTask: (task) => {
+        const created: TaskItem = {
+          ...task,
+          sortOrder: task.sortOrder ?? 0,
+          id: uuid(),
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        dispatch({ type: "ADD_TASK", payload: created });
+        return Promise.resolve(created);
+      },
       updateTask: (id, patch) => {
         const existing = state.tasks.find((t) => t.id === id);
         if (!existing) return;
@@ -610,9 +634,10 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
       },
       addEvent: (event) => {
         const { familyId, profileId } = requireFamily();
-        repo.insertEvent(familyId, categoriesRef.current, profileId, event).then((row) =>
-          dispatch({ type: "ADD_EVENT", payload: row }),
-        );
+        return repo.insertEvent(familyId, categoriesRef.current, profileId, event).then((row) => {
+          dispatch({ type: "ADD_EVENT", payload: row });
+          return row;
+        });
       },
       updateEvent: (id, patch) => {
         const existing = stateRef.current.events.find((e) => e.id === id);
@@ -622,22 +647,44 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         const { familyId } = requireFamily();
         void repo.updateEventRow(familyId, id, categoriesRef.current, patch, merged);
       },
-      deleteEvent: (id) => {
+      deleteEvent: (id, deleteLinkedTasks) => {
+        const linked = stateRef.current.tasks.filter((t) => t.linkedEventId === id);
+        const { familyId } = requireFamily();
         dispatch({ type: "DELETE_EVENT", payload: { id } });
         void repo.deleteEventRow(id);
+        for (const task of linked) {
+          if (deleteLinkedTasks) {
+            dispatch({ type: "DELETE_TASK", payload: { id: task.id } });
+            void repo.deleteTaskRow(task.id);
+          } else {
+            const unlinked = { ...task, linkedEventId: null, updatedAt: new Date().toISOString() };
+            dispatch({ type: "UPDATE_TASK", payload: unlinked });
+            void repo.updateTaskRow(familyId, task.id, { linkedEventId: null }, unlinked, profile?.id ?? null, null);
+          }
+        }
       },
       addTask: (task) => {
         const { familyId, profileId } = requireFamily();
-        repo.insertTask(familyId, profileId, task).then((row) =>
-          dispatch({ type: "ADD_TASK", payload: row }),
-        );
+        const linkedEvent = task.linkedEventId
+          ? (stateRef.current.events.find((e) => e.id === task.linkedEventId) ?? null)
+          : null;
+        return repo
+          .insertTask(familyId, profileId, { ...task, sortOrder: task.sortOrder ?? 0 }, linkedEvent)
+          .then((row) => {
+            dispatch({ type: "ADD_TASK", payload: row });
+            return row;
+          });
       },
       updateTask: (id, patch) => {
         const existing = stateRef.current.tasks.find((t) => t.id === id);
         if (!existing) return;
         const merged = { ...existing, ...patch, updatedAt: new Date().toISOString() };
         dispatch({ type: "UPDATE_TASK", payload: merged });
-        void repo.updateTaskRow(id, patch, profile?.id ?? null);
+        const { familyId } = requireFamily();
+        const linkedEvent = merged.linkedEventId
+          ? (stateRef.current.events.find((e) => e.id === merged.linkedEventId) ?? null)
+          : null;
+        void repo.updateTaskRow(familyId, id, patch, merged, profile?.id ?? null, linkedEvent);
       },
       deleteTask: (id) => {
         dispatch({ type: "DELETE_TASK", payload: { id } });
@@ -648,8 +695,13 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         if (!existing) return;
         const done = !existing.done;
         const doneAt = done ? new Date().toISOString() : null;
-        dispatch({ type: "UPDATE_TASK", payload: { ...existing, done, doneAt, updatedAt: new Date().toISOString() } });
-        void repo.updateTaskRow(id, { done, doneAt }, profile?.id ?? null);
+        const merged = { ...existing, done, doneAt, updatedAt: new Date().toISOString() };
+        dispatch({ type: "UPDATE_TASK", payload: merged });
+        const { familyId } = requireFamily();
+        const linkedEvent = merged.linkedEventId
+          ? (stateRef.current.events.find((e) => e.id === merged.linkedEventId) ?? null)
+          : null;
+        void repo.updateTaskRow(familyId, id, { done, doneAt }, merged, profile?.id ?? null, linkedEvent);
       },
       toggleSubtask: (taskId, subtaskId) => {
         const task = stateRef.current.tasks.find((t) => t.id === taskId);

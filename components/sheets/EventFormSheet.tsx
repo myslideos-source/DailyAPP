@@ -10,7 +10,9 @@ import {
   TextField,
   ToggleRow,
 } from "@/components/ui/FormControls";
+import { PrepTaskChecklist } from "@/components/events/PrepTaskChecklist";
 import { useAppStore } from "@/lib/store/app-store";
+import { useSavePulse } from "@/lib/store/save-pulse-context";
 import { CATEGORIES } from "@/lib/demo-data";
 import { assigneeColor, assigneeLabel, categoryLabel } from "@/lib/theme";
 import { formatLongDate } from "@/lib/date-utils";
@@ -50,8 +52,11 @@ interface Props {
 }
 
 export function EventFormSheet({ open, onClose, defaultDate, presetCategory, editEvent }: Props) {
-  const { addEvent, updateEvent, deleteEvent, showToast } = useAppStore();
+  const { addEvent, updateEvent, deleteEvent, tasks, showToast } = useAppStore();
+  const { triggerSavePulse } = useSavePulse();
   const isBirthday = presetCategory === "geburtstag";
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const linkedTaskCount = editEvent ? tasks.filter((t) => t.linkedEventId === editEvent.id).length : 0;
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(defaultDate);
@@ -100,6 +105,7 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
       setAttachment(null);
     }
     setError(null);
+    setConfirmDelete(false);
   }, [open, editEvent, defaultDate, presetCategory, isBirthday]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -142,13 +148,25 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
       addEvent(payload);
       showToast("Termin gespeichert");
     }
+    triggerSavePulse();
     onClose();
   }
 
-  function handleDelete() {
+  function handleDeleteRequest() {
     if (!editEvent) return;
+    if (linkedTaskCount > 0) {
+      setConfirmDelete(true);
+      return;
+    }
     deleteEvent(editEvent.id);
     showToast("Termin gelöscht");
+    onClose();
+  }
+
+  function handleDeleteConfirmed(deleteLinkedTasks: boolean) {
+    if (!editEvent) return;
+    deleteEvent(editEvent.id, deleteLinkedTasks);
+    showToast(deleteLinkedTasks ? "Termin und Aufgaben gelöscht" : "Termin gelöscht, Aufgaben bleiben erhalten");
     onClose();
   }
 
@@ -227,6 +245,8 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
             placeholder="Optional"
           />
         </div>
+
+        {editEvent && <PrepTaskChecklist event={editEvent} />}
 
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -323,11 +343,48 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
           </p>
         )}
 
+        {confirmDelete && (
+          <div
+            className="rounded-[16px] border p-3.5"
+            style={{ borderColor: "var(--dl-danger)", background: "var(--dl-card)" }}
+          >
+            <p className="mb-3 text-[13.5px] font-medium" style={{ color: "var(--dl-text)" }}>
+              Diesem Termin {linkedTaskCount === 1 ? "ist 1 Vorbereitungsaufgabe" : `sind ${linkedTaskCount} Vorbereitungsaufgaben`} zugeordnet. Was soll damit passieren?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => handleDeleteConfirmed(false)}
+                className="min-h-[44px] rounded-full border text-[13.5px] font-semibold"
+                style={{ borderColor: "var(--dl-border-strong)", color: "var(--dl-text)" }}
+              >
+                Nur Termin löschen, Aufgaben behalten
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteConfirmed(true)}
+                className="min-h-[44px] rounded-full text-[13.5px] font-semibold"
+                style={{ background: "var(--dl-danger)", color: "var(--dl-bg)" }}
+              >
+                Termin und Aufgaben löschen
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="min-h-[36px] text-[13px]"
+                style={{ color: "var(--dl-text-dim)" }}
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2 pt-1">
           {editEvent && (
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={handleDeleteRequest}
               aria-label="Termin löschen"
               className="flex min-h-[48px] w-12 items-center justify-center rounded-full border"
               style={{ borderColor: "var(--dl-border-strong)" }}

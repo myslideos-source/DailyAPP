@@ -5,6 +5,7 @@ import { Repeat, Link2 } from "lucide-react";
 import { TaskCheckbox } from "@/components/tasks/TaskCheckbox";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { useAppStore } from "@/lib/store/app-store";
+import { useSheet } from "@/lib/store/sheet-context";
 import { fromISODate, isToday, relativeDayLabel } from "@/lib/date-utils";
 import type { TaskItem, TaskPriority } from "@/lib/types";
 
@@ -21,22 +22,31 @@ const PRIORITY_LABEL: Record<TaskPriority, string> = {
 };
 
 export function TaskRow({ task }: { task: TaskItem }) {
-  const { toggleTask, toggleSubtask } = useAppStore();
+  const { toggleTask, toggleSubtask, showToast } = useAppStore();
+  const { openEditEvent } = useSheet();
   const doneSub = task.subtasks.filter((s) => s.done).length;
+
+  function handleToggle() {
+    const completing = !task.done;
+    toggleTask(task.id);
+    if (completing) {
+      showToast("Aufgabe erledigt", { label: "Rückgängig", onClick: () => toggleTask(task.id) });
+    }
+  }
 
   return (
     <motion.li
       layout
       initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
+      animate={{ opacity: 1, y: 0, x: 0 }}
+      exit={{ opacity: 0, x: 16 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
       className="rounded-[16px] border p-3.5"
       style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
     >
       <div className="flex items-start gap-3">
         <div className="pt-0.5">
-          <TaskCheckbox checked={task.done} onToggle={() => toggleTask(task.id)} label={`${task.title} als erledigt markieren`} />
+          <TaskCheckbox checked={task.done} onToggle={handleToggle} label={`${task.title} als erledigt markieren`} />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -71,7 +81,16 @@ export function TaskRow({ task }: { task: TaskItem }) {
               {PRIORITY_LABEL[task.priority]}
             </span>
             {task.recurrence !== "none" && <Repeat size={13} style={{ color: "var(--dl-text-faint)" }} />}
-            {task.linkedEventId && <Link2 size={13} style={{ color: "var(--dl-text-faint)" }} />}
+            {task.linkedEventId && (
+              <button
+                type="button"
+                onClick={() => openEditEvent(task.linkedEventId!)}
+                aria-label="Verknüpften Termin öffnen"
+                className="flex h-5 w-5 items-center justify-center rounded-full"
+              >
+                <Link2 size={13} style={{ color: "var(--dl-together)" }} />
+              </button>
+            )}
             <PersonAvatar assignee={task.assignee} size="sm" className="ml-auto" />
           </div>
 

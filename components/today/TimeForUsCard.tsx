@@ -45,26 +45,30 @@ export function TimeForUsCard({
           </div>
         </div>
 
+        {/* Cyan (Domenico) and rosé (Elisabeth) drift toward each other once
+            on appearance, with a soft lavender bloom where they meet — then
+            the card goes still. No loop, no continuous motion (spec 10.6). */}
         <div className="relative h-24 w-28 shrink-0" aria-hidden>
           <motion.div
-            className="absolute right-4 top-1 h-16 w-16 rounded-full"
+            className="absolute right-2 top-1 h-16 w-16 rounded-full"
             style={{ background: "radial-gradient(circle, var(--dl-domenico), transparent 72%)", opacity: 0.55 }}
-            animate={
-              reducedMotion
-                ? undefined
-                : { x: [0, -6, 0], y: [0, 4, 0] }
-            }
-            transition={{ duration: 3.2, repeat: reducedMotion ? 0 : 2, repeatType: "mirror", ease: "easeInOut" }}
+            initial={reducedMotion ? { x: -8, y: 4 } : { x: -16, y: -6 }}
+            animate={{ x: -8, y: 4 }}
+            transition={{ duration: reducedMotion ? 0.01 : 1.4, ease: "easeOut" }}
           />
           <motion.div
             className="absolute bottom-0 right-0 h-16 w-16 rounded-full"
             style={{ background: "radial-gradient(circle, var(--dl-elisabeth), transparent 72%)", opacity: 0.55 }}
-            animate={
-              reducedMotion
-                ? undefined
-                : { x: [0, 6, 0], y: [0, -4, 0] }
-            }
-            transition={{ duration: 3.2, repeat: reducedMotion ? 0 : 2, repeatType: "mirror", ease: "easeInOut", delay: 0.3 }}
+            initial={reducedMotion ? { x: 8, y: -4 } : { x: 18, y: 8 }}
+            animate={{ x: 8, y: -4 }}
+            transition={{ duration: reducedMotion ? 0.01 : 1.4, ease: "easeOut" }}
+          />
+          <motion.div
+            className="absolute right-4 top-6 h-14 w-14 rounded-full"
+            style={{ background: "radial-gradient(circle, var(--dl-together), transparent 72%)" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.5 }}
+            transition={{ duration: reducedMotion ? 0.01 : 0.7, delay: reducedMotion ? 0 : 1, ease: "easeOut" }}
           />
         </div>
       </div>

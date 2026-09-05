@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { CalendarDays, ListChecks, MoreHorizontal, Plus, House } from "lucide-react";
+import { SavePulseSweep, useSavePulseScale } from "@/components/layout/SavePulseGlow";
 
 const ITEMS = [
   { href: "/", label: "Heute", icon: House },
@@ -35,10 +36,11 @@ function NavLink({
       <Icon
         size={22}
         strokeWidth={active ? 2 : 1.6}
+        className="transition-colors duration-300"
         style={{ color: active ? "var(--dl-together)" : "var(--dl-text-dim)" }}
       />
       <span
-        className="text-[10.5px] font-medium"
+        className="text-[10.5px] font-medium transition-colors duration-300"
         style={{ color: active ? "var(--dl-text)" : "var(--dl-text-faint)" }}
       >
         {label}
@@ -57,6 +59,7 @@ function NavLink({
 
 export function BottomNav({ onPlusClick }: { onPlusClick: () => void }) {
   const pathname = usePathname();
+  const pulseScale = useSavePulseScale();
 
   return (
     <nav
@@ -78,14 +81,16 @@ export function BottomNav({ onPlusClick }: { onPlusClick: () => void }) {
             aria-label="Neu erstellen"
             onClick={onPlusClick}
             whileTap={{ scale: 0.88 }}
+            animate={{ scale: pulseScale }}
             transition={{ type: "spring", stiffness: 500, damping: 26 }}
-            className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full shadow-lg"
+            className="relative -mt-6 flex h-14 w-14 items-center justify-center rounded-full shadow-lg"
             style={{
               background:
                 "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))",
               boxShadow: "0 8px 22px rgba(180, 136, 232, 0.35)",
             }}
           >
+            <SavePulseSweep />
             <Plus size={26} strokeWidth={2.2} color="var(--dl-bg)" />
           </motion.button>
         </div>

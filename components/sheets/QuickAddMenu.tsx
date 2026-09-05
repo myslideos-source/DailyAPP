@@ -1,11 +1,12 @@
 "use client";
 
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { CalendarPlus, ListPlus, BellPlus, ShoppingBasket, Cake } from "lucide-react";
+import { CalendarPlus, ListPlus, BellPlus, ShoppingBasket, Cake, Sparkles } from "lucide-react";
 
-export type QuickAddKind = "event" | "task" | "reminder" | "shopping" | "birthday";
+export type QuickAddKind = "natural" | "event" | "task" | "reminder" | "shopping" | "birthday";
 
 const OPTIONS: { kind: QuickAddKind; label: string; icon: typeof CalendarPlus; color: string }[] = [
+  { kind: "natural", label: "Schnell eintragen", icon: Sparkles, color: "var(--dl-together)" },
   { kind: "event", label: "Termin", icon: CalendarPlus, color: "var(--dl-together)" },
   { kind: "task", label: "Aufgabe", icon: ListPlus, color: "var(--dl-domenico)" },
   { kind: "reminder", label: "Erinnerung", icon: BellPlus, color: "var(--dl-elisabeth)" },
@@ -24,7 +25,7 @@ export function QuickAddMenu({
 }) {
   return (
     <BottomSheet open={open} onClose={onClose} title="Neu erstellen">
-      <div className="grid grid-cols-3 gap-3 pb-2 pt-1 sm:grid-cols-5">
+      <div className="grid grid-cols-3 gap-3 pb-2 pt-1 sm:grid-cols-6">
         {OPTIONS.map((opt) => (
           <button
             key={opt.kind}

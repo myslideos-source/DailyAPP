@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { CalendarDays, ListChecks, MoreHorizontal, Plus, House } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SavePulseSweep, useSavePulseScale } from "@/components/layout/SavePulseGlow";
 
 const ITEMS = [
   { href: "/", label: "Heute", icon: House },
@@ -16,6 +17,7 @@ const ITEMS = [
 
 export function DesktopSidebar({ onPlusClick }: { onPlusClick: () => void }) {
   const pathname = usePathname();
+  const pulseScale = useSavePulseScale();
 
   return (
     <aside
@@ -56,18 +58,21 @@ export function DesktopSidebar({ onPlusClick }: { onPlusClick: () => void }) {
         </nav>
       </div>
 
-      <button
+      <motion.button
         type="button"
         onClick={onPlusClick}
-        className="flex items-center justify-center gap-2 rounded-full px-4 py-3 text-[14px] font-semibold shadow-lg"
+        animate={{ scale: pulseScale }}
+        transition={{ type: "spring", stiffness: 500, damping: 26 }}
+        className="relative flex items-center justify-center gap-2 rounded-full px-4 py-3 text-[14px] font-semibold shadow-lg"
         style={{
           background: "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))",
           color: "var(--dl-bg)",
         }}
       >
+        <SavePulseSweep />
         <Plus size={18} strokeWidth={2.4} />
         Neu erstellen
-      </button>
+      </motion.button>
     </aside>
   );
 }
