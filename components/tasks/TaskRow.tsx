@@ -1,30 +1,21 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Repeat, Link2 } from "lucide-react";
+import { ChevronRight, Repeat } from "lucide-react";
 import { TaskCheckbox } from "@/components/tasks/TaskCheckbox";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSheet } from "@/lib/store/sheet-context";
-import { fromISODate, isToday, relativeDayLabel } from "@/lib/date-utils";
-import type { TaskItem, TaskPriority } from "@/lib/types";
-
-const PRIORITY_COLOR: Record<TaskPriority, string> = {
-  low: "var(--dl-text-faint)",
-  medium: "var(--dl-domenico)",
-  high: "var(--dl-elisabeth)",
-};
-
-const PRIORITY_LABEL: Record<TaskPriority, string> = {
-  low: "Niedrig",
-  medium: "Mittel",
-  high: "Hoch",
-};
+import { assigneeColor } from "@/lib/theme";
+import { fromISODate, relativeDayLabel } from "@/lib/date-utils";
+import type { TaskItem } from "@/lib/types";
 
 export function TaskRow({ task }: { task: TaskItem }) {
-  const { toggleTask, toggleSubtask, showToast } = useAppStore();
+  const { toggleTask, toggleSubtask, showToast, events } = useAppStore();
   const { openEditEvent } = useSheet();
   const doneSub = task.subtasks.filter((s) => s.done).length;
+  const linkedEvent = task.linkedEventId ? events.find((e) => e.id === task.linkedEventId) : null;
+  const color = assigneeColor(task.assignee);
 
   function handleToggle() {
     const completing = !task.done;
@@ -41,10 +32,12 @@ export function TaskRow({ task }: { task: TaskItem }) {
       animate={{ opacity: 1, y: 0, x: 0 }}
       exit={{ opacity: 0, x: 16 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="rounded-[16px] border p-3.5"
+      className="flex items-start gap-3 overflow-hidden rounded-[14px] border pr-3.5"
       style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
     >
-      <div className="flex items-start gap-3">
+      <span className="h-full min-h-[1px] w-[3px] shrink-0 self-stretch" style={{ background: color }} aria-hidden />
+
+      <div className="flex flex-1 items-start gap-3 py-3.5">
         <div className="pt-0.5">
           <TaskCheckbox checked={task.done} onToggle={handleToggle} label={`${task.title} als erledigt markieren`} />
         </div>
@@ -53,7 +46,7 @@ export function TaskRow({ task }: { task: TaskItem }) {
           <motion.p
             animate={{ opacity: task.done ? 0.5 : 1 }}
             transition={{ duration: 0.25 }}
-            className="text-[14.5px] font-medium"
+            className="text-[15.5px] font-semibold"
             style={{
               color: "var(--dl-text)",
               textDecoration: task.done ? "line-through" : "none",
@@ -62,37 +55,21 @@ export function TaskRow({ task }: { task: TaskItem }) {
             {task.title}
           </motion.p>
 
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            {task.dueDate && (
-              <span
-                className="text-[12px] font-medium"
-                style={{ color: isToday(fromISODate(task.dueDate)) ? "var(--dl-together)" : "var(--dl-text-faint)" }}
-              >
-                {relativeDayLabel(fromISODate(task.dueDate))}
-              </span>
-            )}
-            <span
-              className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
-              style={{
-                color: PRIORITY_COLOR[task.priority],
-                background: `color-mix(in srgb, ${PRIORITY_COLOR[task.priority]} 14%, transparent)`,
-              }}
-            >
-              {PRIORITY_LABEL[task.priority]}
-            </span>
-            {task.recurrence !== "none" && <Repeat size={13} style={{ color: "var(--dl-text-faint)" }} />}
-            {task.linkedEventId && (
-              <button
-                type="button"
-                onClick={() => openEditEvent(task.linkedEventId!)}
-                aria-label="Verknüpften Termin öffnen"
-                className="flex h-5 w-5 items-center justify-center rounded-full"
-              >
-                <Link2 size={13} style={{ color: "var(--dl-together)" }} />
-              </button>
-            )}
-            <PersonAvatar assignee={task.assignee} size="sm" className="ml-auto" />
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[13px]" style={{ color: "var(--dl-text-dim)" }}>
+            {task.dueDate && <span>{relativeDayLabel(fromISODate(task.dueDate))}</span>}
+            {task.recurrence !== "none" && <Repeat size={12} style={{ color: "var(--dl-text-faint)" }} />}
           </div>
+
+          {linkedEvent && (
+            <button
+              type="button"
+              onClick={() => openEditEvent(linkedEvent.id)}
+              className="mt-1.5 inline-flex max-w-full items-center truncate rounded-full px-2.5 py-1 text-[12px] font-medium"
+              style={{ background: "var(--dl-together-soft)", color: "var(--dl-together)" }}
+            >
+              {linkedEvent.title}
+            </button>
+          )}
 
           {task.subtasks.length > 0 && (
             <div className="mt-2.5 flex flex-col gap-1.5 border-t pt-2.5" style={{ borderColor: "var(--dl-border)" }}>
@@ -126,6 +103,11 @@ export function TaskRow({ task }: { task: TaskItem }) {
               </span>
             </div>
           )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          <PersonAvatar assignee={task.assignee} size="sm" />
+          {linkedEvent && <ChevronRight size={16} style={{ color: "var(--dl-text-faint)" }} />}
         </div>
       </div>
     </motion.li>

@@ -5,22 +5,24 @@
 /* ---------------------------------------------------------------------- */
 
 :root {
-  --dl-bg: #080a13;
-  --dl-aubergine: #17101d;
-  --dl-card: #211724;
-  --dl-card-raised: #271b2b;
-  --dl-border: rgba(246, 240, 234, 0.08);
-  --dl-border-strong: rgba(246, 240, 234, 0.14);
-  --dl-text: #f6f0ea;
-  --dl-text-dim: rgba(246, 240, 234, 0.62);
-  --dl-text-faint: rgba(246, 240, 234, 0.38);
+  --dl-bg: #05091f;
+  --dl-bg-deep: #030719;
+  --dl-aubergine: #0b1230;
+  --dl-card: #151b3f;
+  --dl-card-raised: #11183a;
+  --dl-border: rgba(153, 169, 215, 0.2);
+  --dl-border-strong: rgba(153, 169, 215, 0.34);
+  --dl-text: #f7f7fb;
+  --dl-text-dim: #a9b3d2;
+  --dl-text-faint: #727d9f;
 
-  --dl-domenico: #63d8f4;
-  --dl-domenico-soft: rgba(99, 216, 244, 0.16);
-  --dl-elisabeth: #ea82b7;
-  --dl-elisabeth-soft: rgba(234, 130, 183, 0.16);
-  --dl-together: #b488e8;
-  --dl-together-soft: rgba(180, 136, 232, 0.16);
+  --dl-domenico: #48def4;
+  --dl-domenico-soft: rgba(72, 222, 244, 0.12);
+  --dl-elisabeth: #f05aa5;
+  --dl-elisabeth-soft: rgba(240, 90, 165, 0.12);
+  --dl-together: #9565f5;
+  --dl-together-soft: rgba(149, 101, 245, 0.14);
+  --dl-violet: #704ee8;
 
   --dl-danger: #f0876c;
   --dl-success: #7fd8a6;
@@ -53,6 +55,7 @@
   --color-elisabeth-soft: var(--dl-elisabeth-soft);
   --color-together: var(--dl-together);
   --color-together-soft: var(--dl-together-soft);
+  --color-violet: var(--dl-violet);
 
   --color-danger: var(--dl-danger);
   --color-success: var(--dl-success);
@@ -72,7 +75,13 @@ html {
 }
 
 body {
-  background: var(--dl-bg);
+  /* Deep midnight blue with very soft, large atmospheric light — never
+     bright enough to affect readability, no visible circles or hard edges. */
+  background:
+    radial-gradient(circle at 0% 0%, rgba(72, 222, 244, 0.13), transparent 32%),
+    radial-gradient(circle at 100% 92%, rgba(240, 90, 165, 0.11), transparent 36%),
+    linear-gradient(180deg, var(--dl-bg) 0%, var(--dl-bg-deep) 100%);
+  background-attachment: fixed;
   color: var(--dl-text);
   font-family:
     -apple-system, BlinkMacSystemFont, var(--font-ui), "Segoe UI", Roboto,

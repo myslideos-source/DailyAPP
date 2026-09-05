@@ -10,8 +10,7 @@ import { ToastStack } from "@/components/ui/Toast";
 import { QuickAddMenu } from "@/components/sheets/QuickAddMenu";
 import { EventFormSheet } from "@/components/sheets/EventFormSheet";
 import { TaskFormSheet } from "@/components/sheets/TaskFormSheet";
-import { QuickAddNaturalSheet } from "@/components/sheets/QuickAddNaturalSheet";
-import { QuickAddPreviewSheet } from "@/components/sheets/QuickAddPreviewSheet";
+import { NewEventSheet } from "@/components/sheets/NewEventSheet";
 import { NotificationsSheet } from "@/components/sheets/NotificationsSheet";
 import { ReminderScheduler } from "@/components/pwa/ReminderScheduler";
 import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
@@ -21,23 +20,33 @@ import { useSplash } from "@/lib/store/splash-context";
 import { toISODate } from "@/lib/date-utils";
 
 function SheetRenderer() {
-  const { sheet, openQuickAdd, close } = useSheet();
+  const { sheet, openQuickAdd, openNewEvent, close } = useSheet();
   const { events } = useAppStore();
 
   // Always the true base record (never a recurrence-expanded occurrence),
   // so editing a future instance can't silently move the whole series.
-  const editEvent =
-    sheet?.kind === "event" && sheet.editEventId
-      ? (events.find((e) => e.id === sheet.editEventId) ?? null)
-      : null;
+  const editEvent = sheet?.kind === "event" ? (events.find((e) => e.id === sheet.editEventId) ?? null) : null;
+
+  const manualDate =
+    sheet?.kind === "newEventManual" ? sheet.date ?? toISODate(new Date()) : toISODate(new Date());
 
   return (
     <>
-      <QuickAddMenu open={sheet?.kind === "menu"} onClose={close} onSelect={openQuickAdd} />
-      <EventFormSheet
-        open={sheet?.kind === "event"}
+      <QuickAddMenu
+        open={sheet?.kind === "menu"}
         onClose={close}
-        defaultDate={sheet?.kind === "event" ? sheet.date ?? toISODate(new Date()) : toISODate(new Date())}
+        onSelect={openQuickAdd}
+        onNewEvent={() => openNewEvent()}
+      />
+      <NewEventSheet
+        open={sheet?.kind === "newEvent"}
+        onClose={close}
+        defaultDate={sheet?.kind === "newEvent" ? sheet.date ?? toISODate(new Date()) : toISODate(new Date())}
+      />
+      <EventFormSheet
+        open={sheet?.kind === "event" || sheet?.kind === "newEventManual"}
+        onClose={close}
+        defaultDate={manualDate}
         editEvent={editEvent}
       />
       <EventFormSheet
@@ -49,11 +58,6 @@ function SheetRenderer() {
       <TaskFormSheet open={sheet?.kind === "task"} onClose={close} kind="task" />
       <TaskFormSheet open={sheet?.kind === "reminder"} onClose={close} kind="reminder" />
       <TaskFormSheet open={sheet?.kind === "shopping"} onClose={close} kind="shopping" />
-      <QuickAddNaturalSheet open={sheet?.kind === "natural"} onClose={close} />
-      <QuickAddPreviewSheet
-        open={sheet?.kind === "naturalPreview"}
-        draft={sheet?.kind === "naturalPreview" ? sheet.draft : null}
-      />
       <NotificationsSheet open={sheet?.kind === "notifications"} onClose={close} />
     </>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Trash2, Paperclip, X, Sparkles } from "lucide-react";
+import { Trash2, Paperclip, TriangleAlert, X } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import {
   ChipGroup,
@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/FormControls";
 import { PrepTaskChecklist } from "@/components/events/PrepTaskChecklist";
 import { useAppStore } from "@/lib/store/app-store";
-import { useSheet } from "@/lib/store/sheet-context";
 import { useSavePulse } from "@/lib/store/save-pulse-context";
+import { checkAvailability } from "@/lib/availability";
 import { CATEGORIES } from "@/lib/demo-data";
 import { assigneeColor, assigneeLabel, categoryLabel } from "@/lib/theme";
 import { formatLongDate } from "@/lib/date-utils";
@@ -53,8 +53,7 @@ interface Props {
 }
 
 export function EventFormSheet({ open, onClose, defaultDate, presetCategory, editEvent }: Props) {
-  const { addEvent, updateEvent, deleteEvent, tasks, showToast } = useAppStore();
-  const { openQuickAdd } = useSheet();
+  const { addEvent, updateEvent, deleteEvent, tasks, events, showToast } = useAppStore();
   const { triggerSavePulse } = useSavePulse();
   const isBirthday = presetCategory === "geburtstag";
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -110,6 +109,11 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
     setConfirmDelete(false);
   }, [open, editEvent, defaultDate, presetCategory, isBirthday]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const availability = useMemo(() => {
+    if (assignee !== "gemeinsam" || allDay || !startTime) return null;
+    return checkAvailability(events, date, startTime, endTime, editEvent?.id);
+  }, [assignee, allDay, startTime, endTime, date, events, editEvent]);
 
   const summaryDate = useMemo(() => {
     try {
@@ -177,20 +181,23 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
       open={open}
       onClose={onClose}
       title={editEvent ? "Termin bearbeiten" : isBirthday ? "Geburtstag" : "Termin erstellen"}
+      leftAction={
+        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "var(--dl-text-dim)" }}>
+          Abbrechen
+        </button>
+      }
+      rightAction={
+        <button
+          type="button"
+          onClick={handleSave}
+          className="text-[15px] font-semibold"
+          style={{ color: "var(--dl-together)" }}
+        >
+          Speichern
+        </button>
+      }
     >
       <div className="flex flex-col gap-4">
-        {!editEvent && !isBirthday && (
-          <button
-            type="button"
-            onClick={() => openQuickAdd("natural")}
-            className="flex items-center gap-2 rounded-[14px] border px-3.5 py-2.5 text-left text-[13.5px] font-medium"
-            style={{ borderColor: "var(--dl-together)", background: "var(--dl-together-soft)", color: "var(--dl-together)" }}
-          >
-            <Sparkles size={16} className="shrink-0" />
-            Stattdessen per Text oder Sprache eintragen
-          </button>
-        )}
-
         <div>
           <FieldLabel>Titel</FieldLabel>
           <TextField
@@ -233,6 +240,23 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
             onChange={setAssignee}
             colorFor={assigneeColor}
           />
+          {availability && (
+            <div
+              className="mt-2.5 flex items-start gap-2 rounded-[14px] border px-3.5 py-2.5"
+              style={
+                availability.status === "clear"
+                  ? { borderColor: "var(--dl-border)", color: "var(--dl-text-dim)" }
+                  : { borderColor: "var(--dl-danger)", color: "var(--dl-danger)" }
+              }
+            >
+              {availability.status === "conflict" && <TriangleAlert size={15} className="mt-0.5 shrink-0" />}
+              <p className="text-[12.5px]">
+                {availability.status === "clear"
+                  ? "Ihr habt beide Zeit."
+                  : `Überschneidet sich mit „${availability.conflicts[0].title}“.`}
+              </p>
+            </div>
+          )}
         </div>
 
         <div>
@@ -411,8 +435,8 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
             onClick={handleSave}
             className="min-h-[48px] flex-1 rounded-full text-[15px] font-semibold"
             style={{
-              background: "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))",
-              color: "var(--dl-bg)",
+              background: "linear-gradient(135deg, var(--dl-violet), var(--dl-together))",
+              color: "var(--dl-text)",
             }}
           >
             {editEvent ? "Änderungen speichern" : "Termin speichern"}

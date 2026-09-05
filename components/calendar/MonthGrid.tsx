@@ -75,7 +75,7 @@ export function MonthGrid({
                   layoutId="calendar-day-focus"
                   transition={{ type: "spring", stiffness: 380, damping: 36 }}
                   className="absolute inset-0.5 rounded-[12px]"
-                  style={{ background: "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))" }}
+                  style={{ background: "var(--dl-together)" }}
                 />
               )}
               <span

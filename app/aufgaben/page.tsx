@@ -6,28 +6,18 @@ import { TaskGroup } from "@/components/tasks/TaskGroup";
 import { ShoppingList } from "@/components/tasks/ShoppingList";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useAppStore } from "@/lib/store/app-store";
-import { assigneeColor } from "@/lib/theme";
 import { toISODate } from "@/lib/date-utils";
-import type { Assignee } from "@/lib/types";
 
-const FILTERS: { value: Assignee | "alle"; label: string }[] = [
-  { value: "alle", label: "Alle" },
-  { value: "domenico", label: "Domenico" },
-  { value: "elisabeth", label: "Elisabeth" },
-  { value: "gemeinsam", label: "Gemeinsam" },
-];
+type StatusFilter = "offen" | "heute" | "erledigt";
 
 export default function AufgabenPage() {
   const { tasks } = useAppStore();
-  const [filter, setFilter] = useState<Assignee | "alle">("alle");
+  const [status, setStatus] = useState<StatusFilter>("heute");
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const today = toISODate(new Date());
 
-  const regular = useMemo(
-    () => tasks.filter((t) => !t.isShopping && (filter === "alle" || t.assignee === filter)),
-    [tasks, filter],
-  );
+  const regular = useMemo(() => tasks.filter((t) => !t.isShopping), [tasks]);
   const shopping = useMemo(() => tasks.filter((t) => t.isShopping), [tasks]);
 
   const searchResults = useMemo(() => {
@@ -37,21 +27,40 @@ export default function AufgabenPage() {
   }, [tasks, query]);
 
   const open = regular.filter((t) => !t.done);
-  const done = regular.filter((t) => t.done).sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? ""));
+  const done = regular
+    .filter((t) => t.done)
+    .sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? ""));
 
-  const overdue = open.filter((t) => t.dueDate && t.dueDate < today);
-  const noDate = open.filter((t) => !t.dueDate);
-  const dueToday = open.filter((t) => t.dueDate === today);
-  const later = open.filter((t) => t.dueDate && t.dueDate > today);
+  const dueToday = open.filter((t) => (t.dueDate ?? "") <= today);
+  const later = open.filter((t) => (t.dueDate ?? "") > today);
+
+  // "Today" progress covers anything due today, plus anything actually
+  // completed today even if its original due date was different.
+  const todayRelevant = regular.filter(
+    (t) => t.dueDate === today || (t.done && (t.doneAt ?? "").slice(0, 10) === today),
+  );
+  const todayDoneCount = todayRelevant.filter((t) => t.done).length;
+  const todayTotalCount = todayRelevant.length;
+
+  const STATUS_TABS: { value: StatusFilter; label: string; count: number }[] = [
+    { value: "offen", label: "Offen", count: open.length },
+    { value: "heute", label: "Heute", count: dueToday.length },
+    { value: "erledigt", label: "Erledigt", count: done.length },
+  ];
 
   const isEmpty = regular.length === 0;
 
   return (
     <div className="pt-3">
-      <div className="flex items-center justify-between">
-        <h1 className="text-[22px] font-bold" style={{ color: "var(--dl-text)" }}>
-          Aufgaben
-        </h1>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-[26px] font-bold" style={{ color: "var(--dl-text)" }}>
+            Aufgaben
+          </h1>
+          <p className="mt-0.5 text-[14px]" style={{ color: "var(--dl-text-dim)" }}>
+            Gemeinsam organisiert
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -59,7 +68,7 @@ export default function AufgabenPage() {
             setQuery("");
           }}
           aria-label={searchOpen ? "Suche schließen" : "Suchen"}
-          className="flex h-9 w-9 items-center justify-center rounded-full border"
+          className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border"
           style={{
             borderColor: searchOpen ? "var(--dl-together)" : "var(--dl-border)",
             color: searchOpen ? "var(--dl-together)" : "var(--dl-text-dim)",
@@ -70,7 +79,7 @@ export default function AufgabenPage() {
       </div>
 
       {searchOpen && (
-        <div className="relative mt-3">
+        <div className="relative mt-4">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--dl-text-faint)" }} />
           <input
             autoFocus
@@ -92,27 +101,47 @@ export default function AufgabenPage() {
         </div>
       ) : (
         <>
-          <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1">
-            {FILTERS.map((f) => {
-              const active = f.value === filter;
-              const color = f.value === "alle" ? "var(--dl-together)" : assigneeColor(f.value as Assignee);
+          <div
+            className="mt-5 flex gap-1 rounded-full border p-1"
+            style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
+          >
+            {STATUS_TABS.map((tab) => {
+              const active = tab.value === status;
               return (
                 <button
-                  key={f.value}
+                  key={tab.value}
                   type="button"
-                  onClick={() => setFilter(f.value)}
-                  className="shrink-0 min-h-[36px] rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-300"
+                  onClick={() => setStatus(tab.value)}
+                  className="flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-full text-[13.5px] font-semibold transition-colors duration-200"
                   style={
                     active
-                      ? { borderColor: color, background: `color-mix(in srgb, ${color} 16%, transparent)`, color }
-                      : { borderColor: "var(--dl-border)", color: "var(--dl-text-dim)" }
+                      ? { background: "var(--dl-together)", color: "var(--dl-text)" }
+                      : { color: "var(--dl-text-dim)" }
                   }
                 >
-                  {f.label}
+                  {tab.label}
+                  <span style={{ opacity: active ? 0.85 : 0.6 }}>{tab.count}</span>
                 </button>
               );
             })}
           </div>
+
+          {todayTotalCount > 0 && (
+            <div className="mt-4">
+              <p className="mb-1.5 text-[13px]" style={{ color: "var(--dl-text-dim)" }}>
+                {todayDoneCount} von {todayTotalCount} heute erledigt
+              </p>
+              <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--dl-border)" }}>
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${(todayDoneCount / todayTotalCount) * 100}%`,
+                    background: "var(--dl-together)",
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
           {isEmpty ? (
             <EmptyState
@@ -120,17 +149,21 @@ export default function AufgabenPage() {
               title="Keine Aufgaben"
               description="Erstellt eine neue Aufgabe über den Plus-Button."
             />
+          ) : status === "erledigt" ? (
+            <TaskGroup title="Erledigt" tasks={done} />
+          ) : status === "heute" ? (
+            <>
+              <TaskGroup title="Heute" tasks={dueToday} />
+              <TaskGroup title="Später" tasks={later.slice(0, 4)} />
+            </>
           ) : (
             <>
-              <TaskGroup title="Überfällig" tasks={overdue} />
               <TaskGroup title="Heute" tasks={dueToday} />
               <TaskGroup title="Später" tasks={later} />
-              <TaskGroup title="Ohne Datum" tasks={noDate} />
-              <TaskGroup title="Erledigt" tasks={done} />
             </>
           )}
 
-          <ShoppingList items={shopping} />
+          {status !== "erledigt" && <ShoppingList items={shopping} />}
         </>
       )}
     </div>

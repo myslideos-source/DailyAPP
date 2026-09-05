@@ -85,13 +85,12 @@ export function BottomNav({ onPlusClick }: { onPlusClick: () => void }) {
             transition={{ type: "spring", stiffness: 500, damping: 26 }}
             className="relative -mt-6 flex h-14 w-14 items-center justify-center rounded-full shadow-lg"
             style={{
-              background:
-                "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))",
-              boxShadow: "0 8px 22px rgba(180, 136, 232, 0.35)",
+              background: "linear-gradient(135deg, var(--dl-violet), var(--dl-together))",
+              boxShadow: "0 8px 22px rgba(112, 78, 232, 0.35)",
             }}
           >
             <SavePulseSweep />
-            <Plus size={26} strokeWidth={2.2} color="var(--dl-bg)" />
+            <Plus size={26} strokeWidth={2.2} color="var(--dl-text)" />
           </motion.button>
         </div>
 

@@ -9,12 +9,20 @@ export function BottomSheet({
   open,
   onClose,
   title,
+  leftAction,
+  rightAction,
   children,
   maxWidth = "480px",
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
+  /** Optional text-link style action in the header row, left of the title
+   * (e.g. "Abbrechen"). Falls back to just the drag handle when omitted. */
+  leftAction?: React.ReactNode;
+  /** Optional text-link style action in the header row, right of the title
+   * (e.g. "Speichern"). */
+  rightAction?: React.ReactNode;
   children: React.ReactNode;
   maxWidth?: string;
 }) {
@@ -84,11 +92,15 @@ export function BottomSheet({
                 style={{ background: "var(--dl-border-strong)" }}
               />
             </div>
-            {title && (
-              <div className="px-5 pb-2 pt-1">
-                <h2 className="text-[17px] font-semibold" style={{ color: "var(--dl-text)" }}>
-                  {title}
-                </h2>
+            {(title || leftAction || rightAction) && (
+              <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-1">
+                <div className="min-h-[24px] min-w-[44px]">{leftAction}</div>
+                {title && (
+                  <h2 className="flex-1 truncate text-center text-[17px] font-semibold" style={{ color: "var(--dl-text)" }}>
+                    {title}
+                  </h2>
+                )}
+                <div className="min-h-[24px] min-w-[44px] text-right">{rightAction}</div>
               </div>
             )}
             <div className="safe-bottom overflow-x-hidden overflow-y-auto px-5 pb-5">{children}</div>
