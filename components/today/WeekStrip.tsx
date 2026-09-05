@@ -55,8 +55,6 @@ export function WeekStrip({
           if (info.offset.x < -60) onSwipeWeek(1);
           else if (info.offset.x > 60) onSwipeWeek(-1);
         }}
-        className="overflow-hidden rounded-[var(--radius-lg)] border p-1.5"
-        style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
       >
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
@@ -65,7 +63,7 @@ export function WeekStrip({
             animate={{ opacity: 1, x: 0 }}
             exit={reducedMotion ? { opacity: 0 } : { opacity: 0, x: -12 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="grid grid-cols-7 gap-1"
+            className="grid grid-cols-7"
           >
             {days.map((day) => {
               const selected = isSameDay(day, selectedDate);
@@ -79,44 +77,50 @@ export function WeekStrip({
                   onClick={() => onSelectDate(day)}
                   aria-pressed={selected}
                   aria-label={toISODate(day)}
-                  className="relative flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[16px] py-2 text-center transition-colors"
+                  className="relative flex min-h-[64px] flex-col items-center justify-center gap-1 py-2 text-center"
                 >
                   {selected && (
                     <motion.span
                       layoutId="week-strip-selection"
                       transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                      className="absolute inset-0 rounded-[16px]"
+                      className="absolute inset-x-1.5 inset-y-0 rounded-[22px]"
                       style={{
                         background:
-                          "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))",
+                          "linear-gradient(160deg, rgba(112, 78, 232, 0.55), rgba(149, 101, 245, 0.3))",
+                        border: "1px solid rgba(149, 101, 245, 0.45)",
+                        boxShadow: "0 0 18px rgba(112, 78, 232, 0.3)",
                       }}
                     />
                   )}
                   <span
                     className="relative z-10 text-[11px] font-medium"
-                    style={{ color: selected ? "var(--dl-bg)" : "var(--dl-text-faint)" }}
+                    style={{ color: selected ? "var(--dl-text)" : "var(--dl-text-faint)" }}
                   >
                     {WEEKDAY_SHORT[(day.getDay() + 6) % 7]}
                   </span>
                   <span
                     className="relative z-10 text-[15px] font-semibold"
                     style={{
-                      color: selected ? "var(--dl-bg)" : today ? "var(--dl-together)" : "var(--dl-text)",
+                      color: selected ? "var(--dl-text)" : today ? "var(--dl-together)" : "var(--dl-text)",
                     }}
                   >
                     {formatDayNumber(day)}
                   </span>
                   <span className="relative z-10 flex h-1.5 items-center gap-0.5">
-                    {dots.slice(0, 3).map((assignee) => (
+                    {selected ? (
                       <span
-                        key={assignee}
-                        className="h-1 w-1 rounded-full"
-                        style={{
-                          background: selected ? "var(--dl-bg)" : assigneeColor(assignee as CalendarEvent["assignee"]),
-                          opacity: selected ? 0.7 : 1,
-                        }}
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: "var(--dl-together)", boxShadow: "0 0 6px var(--dl-together)" }}
                       />
-                    ))}
+                    ) : (
+                      dots.slice(0, 3).map((assignee) => (
+                        <span
+                          key={assignee}
+                          className="h-1 w-1 rounded-full"
+                          style={{ background: assigneeColor(assignee as CalendarEvent["assignee"]) }}
+                        />
+                      ))
+                    )}
                   </span>
                 </button>
               );
