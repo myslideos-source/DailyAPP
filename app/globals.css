@@ -112,8 +112,11 @@ body {
 .pt-safe-header {
   padding-top: calc(var(--dl-safe-top) + 0.75rem);
 }
-.pb-safe-nav {
-  padding-bottom: calc(var(--dl-safe-bottom) + 0.5rem);
+/* Keeps content clear of the floating Dayli Dock (~76px tall, 12px above
+   the safe area) plus a little breathing room, so the last event/task/
+   button is always reachable above it. */
+.pb-dock {
+  padding-bottom: calc(112px + var(--dl-safe-bottom));
 }
 
 ::selection {

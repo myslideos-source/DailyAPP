@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
-import { BottomNav } from "@/components/layout/BottomNav";
+import { DayliDock } from "@/components/layout/DayliDock";
 import { DesktopSidebar } from "@/components/layout/DesktopSidebar";
 import { SplashScreen } from "@/components/splash/SplashScreen";
 import { ToastStack } from "@/components/ui/Toast";
@@ -11,6 +11,7 @@ import { QuickAddMenu } from "@/components/sheets/QuickAddMenu";
 import { EventFormSheet } from "@/components/sheets/EventFormSheet";
 import { TaskFormSheet } from "@/components/sheets/TaskFormSheet";
 import { NewEventSheet } from "@/components/sheets/NewEventSheet";
+import { FreeTimeSheet } from "@/components/sheets/FreeTimeSheet";
 import { NotificationsSheet } from "@/components/sheets/NotificationsSheet";
 import { ReminderScheduler } from "@/components/pwa/ReminderScheduler";
 import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
@@ -58,13 +59,14 @@ function SheetRenderer() {
       <TaskFormSheet open={sheet?.kind === "task"} onClose={close} kind="task" />
       <TaskFormSheet open={sheet?.kind === "reminder"} onClose={close} kind="reminder" />
       <TaskFormSheet open={sheet?.kind === "shopping"} onClose={close} kind="shopping" />
+      <FreeTimeSheet open={sheet?.kind === "freeTime"} onClose={close} />
       <NotificationsSheet open={sheet?.kind === "notifications"} onClose={close} />
     </>
   );
 }
 
 function ShellChrome({ children }: { children: React.ReactNode }) {
-  const { openQuickAddMenu, openNotifications } = useSheet();
+  const { sheet, openQuickAddMenu, openNotifications, close } = useSheet();
   const { preferences, ready } = useAppStore();
   const { splashDone } = useSplash();
   const pathname = usePathname();
@@ -77,6 +79,22 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     }
   }, [ready, splashDone, preferences.hasOnboarded, isLoginRoute, router]);
+
+  // Close the Dayli Dock's quick-create popover on every real route change
+  // (including navigating away to a detail page where the Dock itself
+  // unmounts) — tracked here rather than in DayliDock so it still fires
+  // even when the Dock isn't currently rendered.
+  const sheetRef = useRef(sheet);
+  useEffect(() => {
+    sheetRef.current = sheet;
+  }, [sheet]);
+  const prevPathnameRef = useRef(pathname);
+  useEffect(() => {
+    if (prevPathnameRef.current !== pathname) {
+      prevPathnameRef.current = pathname;
+      if (sheetRef.current?.kind === "quickCreate") close();
+    }
+  }, [pathname, close]);
 
   if (isLoginRoute) {
     return (
@@ -97,10 +115,10 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
 
       <div className="relative z-10 flex min-h-dvh flex-1 flex-col">
         <Header onOpenNotifications={openNotifications} />
-        <main className="mx-auto w-full max-w-3xl flex-1 px-5 pb-28 md:pb-12 lg:max-w-5xl">{children}</main>
+        <main className="pb-dock mx-auto w-full max-w-3xl flex-1 px-5 md:pb-12 lg:max-w-5xl">{children}</main>
       </div>
 
-      <BottomNav onPlusClick={openQuickAddMenu} />
+      <DayliDock />
       <ToastStack />
       <SheetRenderer />
       <ReminderScheduler />
