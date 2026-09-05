@@ -77,18 +77,19 @@ export function SplashScreen() {
           exit={{ opacity: 0 }}
           transition={{ duration: reducedMotion ? 0.05 : 0.45, ease: "easeInOut" }}
         >
-          {/* Phase 1 — ambient glow, no hard edges */}
+          {/* Phase 1 — ambient glow, a tight saturated halo (not a wide, muddy
+              blur) so it reads as a deliberate glow rather than a smudge. */}
           {!reducedMotion && (
             <motion.div
               aria-hidden
-              className="pointer-events-none absolute h-[70vmin] w-[70vmin] rounded-full"
+              className="pointer-events-none absolute h-[380px] w-[380px] rounded-full"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.55 }}
+              animate={{ opacity: 1 }}
               transition={{ duration: 1.1, ease: "easeOut" }}
               style={{
                 background:
-                  "radial-gradient(circle, rgba(99,216,244,0.16), rgba(234,130,183,0.14) 55%, transparent 75%)",
-                filter: "blur(40px)",
+                  "radial-gradient(circle, rgba(180,136,232,0.4), rgba(99,216,244,0.14) 45%, transparent 68%)",
+                filter: "blur(26px)",
               }}
             />
           )}
