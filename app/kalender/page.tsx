@@ -111,9 +111,14 @@ export default function KalenderPage() {
     <div className="pt-3 lg:flex lg:gap-8">
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between">
-          <h1 className="text-[22px] font-bold" style={{ color: "var(--dl-text)" }}>
-            Kalender
-          </h1>
+          <div>
+            <h1 className="text-[24px] font-bold leading-tight" style={{ color: "var(--dl-text)" }}>
+              Kalender
+            </h1>
+            <p className="mt-0.5 text-[14px] font-medium" style={{ color: "var(--dl-text-dim)" }}>
+              {formatMonthYear(monthStart)}
+            </p>
+          </div>
           <button
             type="button"
             onClick={goToday}
@@ -172,19 +177,21 @@ export default function KalenderPage() {
                 <button type="button" onClick={() => step(-1)} aria-label="Zurück" className="flex h-9 w-9 items-center justify-center rounded-full">
                   <ChevronLeft size={19} style={{ color: "var(--dl-text-dim)" }} />
                 </button>
-                <div className="relative flex items-center justify-center">
-                  {view === "tag" && !reducedMotion && (
-                    <motion.span
-                      layoutId="calendar-day-focus"
-                      transition={{ type: "spring", stiffness: 380, damping: 36 }}
-                      className="absolute inset-0 rounded-full"
-                      style={{ background: "var(--dl-together-soft)" }}
-                    />
-                  )}
-                  <p className="relative px-3.5 py-1 text-[14.5px] font-semibold" style={{ color: "var(--dl-text)" }}>
-                    {periodLabel}
-                  </p>
-                </div>
+                {view !== "monat" && (
+                  <div className="relative flex items-center justify-center">
+                    {view === "tag" && !reducedMotion && (
+                      <motion.span
+                        layoutId="calendar-day-focus"
+                        transition={{ type: "spring", stiffness: 380, damping: 36 }}
+                        className="absolute inset-0 rounded-full"
+                        style={{ background: "var(--dl-together-soft)" }}
+                      />
+                    )}
+                    <p className="relative px-3.5 py-1 text-[14.5px] font-semibold" style={{ color: "var(--dl-text)" }}>
+                      {periodLabel}
+                    </p>
+                  </div>
+                )}
                 <button type="button" onClick={() => step(1)} aria-label="Weiter" className="flex h-9 w-9 items-center justify-center rounded-full">
                   <ChevronRight size={19} style={{ color: "var(--dl-text-dim)" }} />
                 </button>
