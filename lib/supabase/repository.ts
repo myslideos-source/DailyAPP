@@ -6,6 +6,12 @@
 
 import { getSupabaseClient } from "./client";
 import type { Database } from "./types";
+import {
+  buildEventReminderMessage,
+  buildTaskReminderMessage,
+  computeEventRemindAt,
+  computeTaskRemindAt,
+} from "@/lib/reminder-messages";
 import type {
   AppNotification,
   Assignee,
@@ -39,19 +45,13 @@ function categoryIdToKey(categories: CategoryRef[], id: string | null): EventCat
 }
 
 // ---------------------------------------------------------------------------
-// reminders — kept in sync with an event's reminderMinutesBefore field so
-// the send-due-reminders edge function (and pg_cron) has something to poll.
-// Only fires for the base event's own date/time; recurring occurrences
-// beyond the first are not currently reminded.
+// reminders — kept in sync with an event's/task's reminderMinutesBefore
+// field so the send-due-reminders edge function (and pg_cron) has
+// something to poll. Only fires for the base event's own date/time;
+// recurring occurrences beyond the first are not currently reminded.
+// A stored `message` carries prep-task-aware copy (see lib/reminder-
+// messages.ts) so the edge function and the in-app bell don't re-derive it.
 // ---------------------------------------------------------------------------
-
-function computeRemindAt(dateISO: string, startTime: string, minutesBefore: number) {
-  const [hours, minutes] = startTime.split(":").map(Number);
-  const start = new Date(`${dateISO}T00:00:00`);
-  start.setHours(hours, minutes, 0, 0);
-  start.setMinutes(start.getMinutes() - minutesBefore);
-  return start.toISOString();
-}
 
 export async function syncEventReminder(familyId: string, event: CalendarEvent) {
   const supabase = client();
@@ -62,13 +62,45 @@ export async function syncEventReminder(familyId: string, event: CalendarEvent) 
     return;
   }
 
-  const remindAt = computeRemindAt(event.date, event.startTime, event.reminderMinutesBefore);
+  const remindAt = computeEventRemindAt(event.date, event.startTime, event.reminderMinutesBefore).toISOString();
+  const { count } = await supabase
+    .from("tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("linked_event_id", event.id)
+    .eq("done", false);
+  const message = buildEventReminderMessage(event, count ?? 0);
+
   const { error: deleteError } = await supabase.from("reminders").delete().eq("event_id", event.id);
   if (deleteError) throw deleteError;
   const { error: insertError } = await supabase.from("reminders").insert({
     family_id: familyId,
     event_id: event.id,
     remind_at: remindAt,
+    message,
+    sent: false,
+  });
+  if (insertError) throw insertError;
+}
+
+export async function syncTaskReminder(familyId: string, task: TaskItem, linkedEvent?: CalendarEvent | null) {
+  const supabase = client();
+
+  if (!task.reminderMinutesBefore || !task.dueDate || task.done) {
+    const { error } = await supabase.from("reminders").delete().eq("task_id", task.id);
+    if (error) throw error;
+    return;
+  }
+
+  const remindAt = computeTaskRemindAt(task.dueDate, task.reminderMinutesBefore).toISOString();
+  const message = buildTaskReminderMessage(task, linkedEvent);
+
+  const { error: deleteError } = await supabase.from("reminders").delete().eq("task_id", task.id);
+  if (deleteError) throw deleteError;
+  const { error: insertError } = await supabase.from("reminders").insert({
+    family_id: familyId,
+    task_id: task.id,
+    remind_at: remindAt,
+    message,
     sent: false,
   });
   if (insertError) throw insertError;
@@ -167,6 +199,8 @@ function rowToTask(row: Row, subtasks: Subtask[]): TaskItem {
     recurrence: row.recurrence_rule as RecurrenceRule,
     isShopping: row.is_shopping as boolean,
     linkedEventId: (row.linked_event_id as string | null) ?? null,
+    reminderMinutesBefore: (row.reminder_minutes_before as number | null) ?? null,
+    sortOrder: (row.sort_order as number | null) ?? 0,
     subtasks,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -291,6 +325,7 @@ export async function insertTask(
   familyId: string,
   profileId: string,
   task: Omit<TaskItem, "id" | "createdAt" | "updatedAt">,
+  linkedEvent?: CalendarEvent | null,
 ) {
   const { data, error } = await client()
     .from("tasks")
@@ -304,6 +339,8 @@ export async function insertTask(
       recurrence_rule: task.recurrence,
       is_shopping: task.isShopping,
       linked_event_id: task.linkedEventId ?? null,
+      reminder_minutes_before: task.reminderMinutesBefore ?? null,
+      sort_order: task.sortOrder ?? 0,
       created_by: profileId,
     })
     .select()
@@ -320,10 +357,22 @@ export async function insertTask(
     subtasks = (subRows ?? []).map((r) => ({ id: r.id, title: r.title, done: r.done }));
   }
 
-  return rowToTask(data, subtasks);
+  const inserted = rowToTask(data, subtasks);
+  try {
+    await syncTaskReminder(familyId, inserted, linkedEvent);
+  } catch (reminderError) {
+    console.error("Failed to sync reminder for new task", reminderError);
+  }
+  return inserted;
 }
 
-export async function updateTaskRow(id: string, patch: Partial<TaskItem>) {
+export async function updateTaskRow(
+  familyId: string,
+  id: string,
+  patch: Partial<TaskItem>,
+  merged: TaskItem,
+  linkedEvent?: CalendarEvent | null,
+) {
   const update: Database["public"]["Tables"]["tasks"]["Update"] = {};
   if (patch.title !== undefined) update.title = patch.title;
   if (patch.assignee !== undefined) update.assignee = patch.assignee;
@@ -333,9 +382,26 @@ export async function updateTaskRow(id: string, patch: Partial<TaskItem>) {
   if (patch.doneAt !== undefined) update.done_at = patch.doneAt;
   if (patch.recurrence !== undefined) update.recurrence_rule = patch.recurrence;
   if (patch.isShopping !== undefined) update.is_shopping = patch.isShopping;
+  if (patch.linkedEventId !== undefined) update.linked_event_id = patch.linkedEventId ?? null;
+  if (patch.reminderMinutesBefore !== undefined) update.reminder_minutes_before = patch.reminderMinutesBefore;
+  if (patch.sortOrder !== undefined) update.sort_order = patch.sortOrder;
 
   const { error } = await client().from("tasks").update(update).eq("id", id);
   if (error) throw error;
+
+  const reminderRelevant =
+    patch.reminderMinutesBefore !== undefined ||
+    patch.dueDate !== undefined ||
+    patch.done !== undefined ||
+    patch.linkedEventId !== undefined ||
+    patch.title !== undefined;
+  if (reminderRelevant) {
+    try {
+      await syncTaskReminder(familyId, merged, linkedEvent);
+    } catch (reminderError) {
+      console.error("Failed to sync reminder for updated task", reminderError);
+    }
+  }
 }
 
 export async function deleteTaskRow(id: string) {

@@ -19,7 +19,7 @@ export function ToastStack() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 420, damping: 32 }}
-            className="pointer-events-auto rounded-full border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-md"
+            className="pointer-events-auto flex items-center gap-3 rounded-full border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-md"
             style={{
               background: "rgba(33, 23, 36, 0.92)",
               borderColor: "var(--dl-border-strong)",
@@ -28,6 +28,16 @@ export function ToastStack() {
             role="status"
           >
             {toast.message}
+            {toast.action && (
+              <button
+                type="button"
+                onClick={toast.action.onClick}
+                className="shrink-0 font-semibold underline-offset-2 hover:underline"
+                style={{ color: "var(--dl-together)" }}
+              >
+                {toast.action.label}
+              </button>
+            )}
           </motion.div>
         ))}
       </AnimatePresence>

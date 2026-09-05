@@ -77,7 +77,7 @@ export function ChipGroup<T extends string>({
             role="radio"
             aria-checked={active}
             onClick={() => onChange(opt.value)}
-            className="min-h-[38px] rounded-full border px-3.5 py-1.5 text-[13.5px] font-medium transition-colors"
+            className="min-h-[38px] rounded-full border px-3.5 py-1.5 text-[13.5px] font-medium transition-colors duration-300"
             style={
               active
                 ? {

@@ -1,4 +1,4 @@
-import { addDays, format, subDays } from "date-fns";
+import { addDays, format, nextFriday, subDays } from "date-fns";
 import type {
   CalendarEvent,
   CategoryMeta,
@@ -43,8 +43,22 @@ function seedEvents(): CalendarEvent[] {
   const today = new Date();
   const t = (offset: number) => iso(addDays(today, offset));
   const now = new Date().toISOString();
+  const tiefbauerDate = iso(nextFriday(today));
 
   const events: Omit<CalendarEvent, "createdAt" | "updatedAt">[] = [
+    {
+      id: "evt-tiefbauer-kommt",
+      title: "Tiefbauer kommt",
+      date: tiefbauerDate,
+      startTime: "09:00",
+      endTime: "10:00",
+      allDay: false,
+      assignee: "gemeinsam",
+      category: "hausbau",
+      location: "Baustelle",
+      reminderMinutesBefore: 1440,
+      recurrence: "none",
+    },
     {
       id: "evt-bemusterung",
       title: "Bemusterung Haus",
@@ -205,6 +219,8 @@ function seedTasks(): TaskItem[] {
   const t = (offset: number) => iso(addDays(today, offset));
   const now = new Date().toISOString();
 
+  const tiefbauerDate = iso(nextFriday(today));
+
   const tasks: Omit<TaskItem, "createdAt" | "updatedAt">[] = [
     {
       id: "task-tiefbauer",
@@ -216,6 +232,77 @@ function seedTasks(): TaskItem[] {
       recurrence: "none",
       isShopping: false,
       linkedEventId: "evt-tiefbauer",
+      sortOrder: 0,
+      subtasks: [],
+    },
+    // Vorbereitungsaufgaben für "Tiefbauer kommt" — 2 erledigt, 3 offen,
+    // damit der Fortschrittszustand im Termin-Detail direkt sichtbar ist.
+    {
+      id: "task-prep-grundstueck-oeffnen",
+      title: "Grundstück öffnen",
+      assignee: "domenico",
+      dueDate: tiefbauerDate,
+      priority: "medium",
+      done: false,
+      recurrence: "none",
+      isShopping: false,
+      linkedEventId: "evt-tiefbauer-kommt",
+      sortOrder: 0,
+      subtasks: [],
+    },
+    {
+      id: "task-prep-hoehenplan",
+      title: "Höhenplan bereitlegen",
+      assignee: "domenico",
+      dueDate: tiefbauerDate,
+      priority: "medium",
+      done: false,
+      recurrence: "none",
+      isShopping: false,
+      linkedEventId: "evt-tiefbauer-kommt",
+      reminderMinutesBefore: 1440,
+      sortOrder: 1,
+      subtasks: [],
+    },
+    {
+      id: "task-prep-zimmermann-anrufen",
+      title: "Herrn Zimmermann anrufen",
+      assignee: "elisabeth",
+      dueDate: t(-1),
+      priority: "medium",
+      done: true,
+      doneAt: now,
+      recurrence: "none",
+      isShopping: false,
+      linkedEventId: "evt-tiefbauer-kommt",
+      sortOrder: 2,
+      subtasks: [],
+    },
+    {
+      id: "task-prep-fragen-notieren",
+      title: "Offene Fragen notieren",
+      assignee: "gemeinsam",
+      dueDate: tiefbauerDate,
+      priority: "low",
+      done: false,
+      recurrence: "none",
+      isShopping: false,
+      linkedEventId: "evt-tiefbauer-kommt",
+      sortOrder: 3,
+      subtasks: [],
+    },
+    {
+      id: "task-prep-fotos-grundstueck",
+      title: "Fotos vom Grundstück machen",
+      assignee: "domenico",
+      dueDate: t(-1),
+      priority: "low",
+      done: true,
+      doneAt: now,
+      recurrence: "none",
+      isShopping: false,
+      linkedEventId: "evt-tiefbauer-kommt",
+      sortOrder: 4,
       subtasks: [],
     },
     {
@@ -227,6 +314,7 @@ function seedTasks(): TaskItem[] {
       done: false,
       recurrence: "none",
       isShopping: false,
+      sortOrder: 0,
       subtasks: [
         { id: "sub-1", title: "Bad OG", done: true },
         { id: "sub-2", title: "Küche", done: false },
@@ -241,6 +329,7 @@ function seedTasks(): TaskItem[] {
       done: false,
       recurrence: "none",
       isShopping: false,
+      sortOrder: 0,
       subtasks: [],
     },
     {
@@ -252,6 +341,7 @@ function seedTasks(): TaskItem[] {
       done: false,
       recurrence: "none",
       isShopping: true,
+      sortOrder: 0,
       subtasks: [],
     },
     {
@@ -263,6 +353,7 @@ function seedTasks(): TaskItem[] {
       done: false,
       recurrence: "none",
       isShopping: true,
+      sortOrder: 0,
       subtasks: [],
     },
     {
@@ -275,6 +366,7 @@ function seedTasks(): TaskItem[] {
       doneAt: now,
       recurrence: "none",
       isShopping: true,
+      sortOrder: 0,
       subtasks: [],
     },
     {
@@ -286,6 +378,7 @@ function seedTasks(): TaskItem[] {
       done: false,
       recurrence: "weekly",
       isShopping: false,
+      sortOrder: 0,
       subtasks: [],
     },
     {
@@ -297,6 +390,7 @@ function seedTasks(): TaskItem[] {
       done: false,
       recurrence: "none",
       isShopping: false,
+      sortOrder: 0,
       subtasks: [],
     },
     {
@@ -308,6 +402,7 @@ function seedTasks(): TaskItem[] {
       done: false,
       recurrence: "none",
       isShopping: false,
+      sortOrder: 0,
       subtasks: [],
     },
     {
@@ -319,6 +414,7 @@ function seedTasks(): TaskItem[] {
       done: false,
       recurrence: "none",
       isShopping: false,
+      sortOrder: 0,
       subtasks: [],
     },
   ];

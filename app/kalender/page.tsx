@@ -10,6 +10,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
+import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { SegmentControl } from "@/components/ui/SegmentControl";
 import { FilterBar } from "@/components/calendar/FilterBar";
@@ -19,6 +20,7 @@ import { AgendaList } from "@/components/calendar/AgendaList";
 import { DayTimeline } from "@/components/today/DayTimeline";
 import { useAppStore } from "@/lib/store/app-store";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { filterEvents, matchesSearch, type CalendarFilter } from "@/lib/calendar-filter";
 import { expandEventOccurrences, expandEventsForDay } from "@/lib/recurrence";
 import {
@@ -42,6 +44,7 @@ export default function KalenderPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const reducedMotion = useReducedMotion();
 
   const filtered = useMemo(() => filterEvents(events, filter), [events, filter]);
 
@@ -169,44 +172,64 @@ export default function KalenderPage() {
                 <button type="button" onClick={() => step(-1)} aria-label="Zurück" className="flex h-9 w-9 items-center justify-center rounded-full">
                   <ChevronLeft size={19} style={{ color: "var(--dl-text-dim)" }} />
                 </button>
-                <p className="text-[14.5px] font-semibold" style={{ color: "var(--dl-text)" }}>
-                  {periodLabel}
-                </p>
+                <div className="relative flex items-center justify-center">
+                  {view === "tag" && !reducedMotion && (
+                    <motion.span
+                      layoutId="calendar-day-focus"
+                      transition={{ type: "spring", stiffness: 380, damping: 36 }}
+                      className="absolute inset-0 rounded-full"
+                      style={{ background: "var(--dl-together-soft)" }}
+                    />
+                  )}
+                  <p className="relative px-3.5 py-1 text-[14.5px] font-semibold" style={{ color: "var(--dl-text)" }}>
+                    {periodLabel}
+                  </p>
+                </div>
                 <button type="button" onClick={() => step(1)} aria-label="Weiter" className="flex h-9 w-9 items-center justify-center rounded-full">
                   <ChevronRight size={19} style={{ color: "var(--dl-text-dim)" }} />
                 </button>
               </div>
             )}
 
-            <div className="mt-4">
-              {view === "monat" && (
-                <MonthGrid
-                  month={monthStart}
-                  selectedDate={selectedDate}
-                  onSelectDate={(d) => {
-                    setSelectedDate(d);
-                    setAnchor(d);
-                    if (!isDesktop) setView("tag");
-                  }}
-                  events={monthGridEvents}
-                />
-              )}
-              {view === "woche" && <WeekAgenda weekStart={weekStart} events={weekAgendaEvents} />}
-              {view === "tag" && (
-                <DayTimeline
-                  events={dayEvents}
-                  selectedDate={selectedDate}
-                  direction={direction}
-                  animate
-                  onSwipeDay={(dir) => {
-                    const next = addDays(selectedDate, dir);
-                    setDirection(dir);
-                    setSelectedDate(next);
-                    setAnchor(next);
-                  }}
-                />
-              )}
-              {view === "agenda" && <AgendaList events={agendaEvents} />}
+            <div className="relative mt-4">
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div
+                  key={view}
+                  initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.985 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.985 }}
+                  transition={{ duration: reducedMotion ? 0.01 : 0.22, ease: "easeOut" }}
+                >
+                  {view === "monat" && (
+                    <MonthGrid
+                      month={monthStart}
+                      selectedDate={selectedDate}
+                      onSelectDate={(d) => {
+                        setSelectedDate(d);
+                        setAnchor(d);
+                        if (!isDesktop) setView("tag");
+                      }}
+                      events={monthGridEvents}
+                    />
+                  )}
+                  {view === "woche" && <WeekAgenda weekStart={weekStart} events={weekAgendaEvents} />}
+                  {view === "tag" && (
+                    <DayTimeline
+                      events={dayEvents}
+                      selectedDate={selectedDate}
+                      direction={direction}
+                      animate
+                      onSwipeDay={(dir) => {
+                        const next = addDays(selectedDate, dir);
+                        setDirection(dir);
+                        setSelectedDate(next);
+                        setAnchor(next);
+                      }}
+                    />
+                  )}
+                  {view === "agenda" && <AgendaList events={agendaEvents} />}
+                </motion.div>
+              </AnimatePresence>
             </div>
           </>
         )}

@@ -6,6 +6,7 @@ import { v4 as uuid } from "uuid";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ChipGroup, FieldLabel, TextField } from "@/components/ui/FormControls";
 import { useAppStore } from "@/lib/store/app-store";
+import { useSavePulse } from "@/lib/store/save-pulse-context";
 import { assigneeColor } from "@/lib/theme";
 import { toISODate } from "@/lib/date-utils";
 import type { Assignee, Subtask, TaskPriority } from "@/lib/types";
@@ -39,6 +40,7 @@ export function TaskFormSheet({
   kind: Extract<QuickAddKind, "task" | "reminder" | "shopping">;
 }) {
   const { addTask, showToast } = useAppStore();
+  const { triggerSavePulse } = useSavePulse();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState(toISODate(new Date()));
   const [priority, setPriority] = useState<TaskPriority>("medium");
@@ -86,6 +88,7 @@ export function TaskFormSheet({
     showToast(
       kind === "shopping" ? "Zur Einkaufsliste hinzugefügt" : kind === "reminder" ? "Erinnerung gespeichert" : "Aufgabe gespeichert",
     );
+    triggerSavePulse();
     onClose();
   }
 

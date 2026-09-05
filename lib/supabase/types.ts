@@ -583,6 +583,8 @@ export type Database = {
           linked_event_id: string | null
           priority: string
           recurrence_rule: string
+          reminder_minutes_before: number | null
+          sort_order: number
           title: string
           updated_at: string
         }
@@ -599,6 +601,8 @@ export type Database = {
           linked_event_id?: string | null
           priority?: string
           recurrence_rule?: string
+          reminder_minutes_before?: number | null
+          sort_order?: number
           title: string
           updated_at?: string
         }
@@ -615,6 +619,8 @@ export type Database = {
           linked_event_id?: string | null
           priority?: string
           recurrence_rule?: string
+          reminder_minutes_before?: number | null
+          sort_order?: number
           title?: string
           updated_at?: string
         }
@@ -679,10 +685,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_reminder_secrets: { Args: Record<string, never>; Returns: { name: string; secret: string }[] }
+      get_reminder_secrets: {
+        Args: Record<string, never>
+        Returns: {
+          name: string
+          secret: string
+        }[]
+      }
       is_family_member: { Args: { target_family_id: string }; Returns: boolean }
       is_family_owner: { Args: { target_family_id: string }; Returns: boolean }
-      join_family_slot: { Args: never; Returns: string }
+      join_family_slot: { Args: Record<string, never>; Returns: string }
       seed_default_categories: {
         Args: { target_family_id: string }
         Returns: undefined

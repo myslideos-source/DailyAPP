@@ -2,19 +2,23 @@
 
 import { useId, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { MapPin, Pencil, StickyNote } from "lucide-react";
+import { ListChecks, MapPin, Pencil, StickyNote } from "lucide-react";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { assigneeColor, assigneeLabel, categoryLabel } from "@/lib/theme";
+import { useAppStore } from "@/lib/store/app-store";
 import { useSheet } from "@/lib/store/sheet-context";
 import type { CalendarEvent } from "@/lib/types";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
+import { TOGETHER_MERGE_KEYFRAMES, TOGETHER_MERGE_TRANSITION } from "@/lib/motion-variants";
 
 export function EventCard({ event, index }: { event: CalendarEvent; index: number }) {
   const [expanded, setExpanded] = useState(false);
   const { openEditEvent } = useSheet();
+  const { tasks } = useAppStore();
   const reducedMotion = useReducedMotion();
   const panelId = useId();
   const color = assigneeColor(event.assignee);
+  const openPrepCount = tasks.filter((t) => t.linkedEventId === event.id && !t.done).length;
 
   const subtitleParts = [
     event.assignee === "gemeinsam" ? "Gemeinsam" : assigneeLabel(event.assignee),
@@ -30,13 +34,19 @@ export function EventCard({ event, index }: { event: CalendarEvent; index: numbe
     >
       <div className="flex w-4 flex-col items-center pt-1.5">
         <motion.span
-          initial={reducedMotion ? { scale: 1 } : { scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: reducedMotion ? 0 : index * 0.07 + 0.04, type: "spring", stiffness: 500, damping: 20 }}
+          initial={reducedMotion ? { scale: 1, borderColor: color } : { scale: 0, borderColor: color }}
+          animate={
+            !reducedMotion && event.assignee === "gemeinsam"
+              ? { scale: 1, borderColor: TOGETHER_MERGE_KEYFRAMES }
+              : { scale: 1, borderColor: color }
+          }
+          transition={{
+            scale: { delay: reducedMotion ? 0 : index * 0.07 + 0.04, type: "spring", stiffness: 500, damping: 20 },
+            borderColor: TOGETHER_MERGE_TRANSITION,
+          }}
           className="h-3 w-3 shrink-0 rounded-full border-2"
-          style={{ borderColor: color, background: "var(--dl-bg)" }}
+          style={{ background: "var(--dl-bg)" }}
         />
-        <span className="mt-1 w-px flex-1" style={{ background: "var(--dl-border)" }} />
       </div>
 
       <motion.div layout className="min-w-0 flex-1 pt-0.5">
@@ -56,6 +66,15 @@ export function EventCard({ event, index }: { event: CalendarEvent; index: numbe
           {subtitleParts.length > 0 && (
             <span className="text-[13px]" style={{ color: "var(--dl-text-dim)" }}>
               {subtitleParts.join(" · ")}
+            </span>
+          )}
+          {openPrepCount > 0 && (
+            <span
+              className="mt-0.5 flex items-center gap-1 text-[11.5px] font-medium"
+              style={{ color: "var(--dl-text-faint)" }}
+            >
+              <ListChecks size={12} />
+              {openPrepCount === 1 ? "1 Aufgabe offen" : `${openPrepCount} Aufgaben offen`}
             </span>
           )}
         </button>

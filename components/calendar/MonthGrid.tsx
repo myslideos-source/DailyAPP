@@ -72,8 +72,8 @@ export function MonthGrid({
             >
               {selected && (
                 <motion.span
-                  layoutId="month-grid-selection"
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  layoutId="calendar-day-focus"
+                  transition={{ type: "spring", stiffness: 380, damping: 36 }}
                   className="absolute inset-0.5 rounded-[12px]"
                   style={{ background: "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))" }}
                 />
