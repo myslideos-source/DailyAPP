@@ -73,7 +73,7 @@ export function FullscreenPage({
         >
           <div className="dl-grain" aria-hidden />
 
-          <div className="safe-top relative z-10 mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-5 pb-3 pt-4">
+          <div className="safe-top relative z-10 mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-5 pb-3 pt-6">
             <div className="min-h-[24px] min-w-[64px]">{leftAction}</div>
             {title && (
               <h1 className="flex-1 truncate text-center text-[17px] font-semibold" style={{ color: "var(--dl-text)" }}>
