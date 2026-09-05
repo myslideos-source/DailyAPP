@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Bell, Calendar, ChevronRight, Mic, MapPin, Plus, Square, TriangleAlert, X } from "lucide-react";
-import { BottomSheet } from "@/components/ui/BottomSheet";
+import { FullscreenPage } from "@/components/ui/FullscreenPage";
 import { TextAreaField } from "@/components/ui/FormControls";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSheet } from "@/lib/store/sheet-context";
@@ -196,7 +196,7 @@ export function NewEventSheet({
   }
 
   return (
-    <BottomSheet
+    <FullscreenPage
       open={open}
       onClose={onClose}
       title="Neuer Termin"
@@ -424,6 +424,6 @@ export function NewEventSheet({
           Termin speichern
         </button>
       </div>
-    </BottomSheet>
+    </FullscreenPage>
   );
 }

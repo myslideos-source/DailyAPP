@@ -79,9 +79,10 @@ export function MonthGrid({
                 />
               )}
               <span
-                className="relative z-10 text-[13.5px] font-medium"
+                className="relative z-10 flex h-6 w-6 items-center justify-center rounded-full text-[13.5px] font-medium"
                 style={{
                   color: selected ? "var(--dl-bg)" : today ? "var(--dl-together)" : "var(--dl-text)",
+                  border: today && !selected ? "1.5px solid var(--dl-together)" : undefined,
                 }}
               >
                 {formatDayNumber(day)}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BottomSheet } from "@/components/ui/BottomSheet";
+import { FullscreenPage } from "@/components/ui/FullscreenPage";
 import { ChipGroup, FieldLabel, TextField } from "@/components/ui/FormControls";
 import { useAppStore } from "@/lib/store/app-store";
 import { assigneeColor } from "@/lib/theme";
@@ -46,7 +46,26 @@ export function AddSavingsEntrySheet({
   }
 
   return (
-    <BottomSheet open={Boolean(goal)} onClose={onClose} title={`Betrag für „${goal?.title ?? ""}“`}>
+    <FullscreenPage
+      open={Boolean(goal)}
+      onClose={onClose}
+      title={`Betrag für „${goal?.title ?? ""}“`}
+      leftAction={
+        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "var(--dl-text-dim)" }}>
+          Abbrechen
+        </button>
+      }
+      rightAction={
+        <button
+          type="button"
+          onClick={handleSave}
+          className="text-[15px] font-semibold"
+          style={{ color: "var(--dl-together)" }}
+        >
+          Speichern
+        </button>
+      }
+    >
       <div className="flex flex-col gap-4">
         <div>
           <FieldLabel>Betrag (€)</FieldLabel>
@@ -70,12 +89,12 @@ export function AddSavingsEntrySheet({
           type="button"
           onClick={handleSave}
           className="min-h-[48px] rounded-full text-[15px] font-semibold"
-          style={{ background: "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))", color: "var(--dl-bg)" }}
+          style={{ background: "linear-gradient(135deg, var(--dl-violet), var(--dl-together))", color: "var(--dl-text)" }}
         >
           Hinzufügen
         </button>
       </div>
-    </BottomSheet>
+    </FullscreenPage>
   );
 }
 
@@ -106,7 +125,26 @@ export function NewGoalSheet({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Neues Sparziel">
+    <FullscreenPage
+      open={open}
+      onClose={onClose}
+      title="Neues Sparziel"
+      leftAction={
+        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "var(--dl-text-dim)" }}>
+          Abbrechen
+        </button>
+      }
+      rightAction={
+        <button
+          type="button"
+          onClick={handleSave}
+          className="text-[15px] font-semibold"
+          style={{ color: "var(--dl-together)" }}
+        >
+          Speichern
+        </button>
+      }
+    >
       <div className="flex flex-col gap-4">
         <div>
           <FieldLabel>Titel</FieldLabel>
@@ -134,11 +172,11 @@ export function NewGoalSheet({ open, onClose }: { open: boolean; onClose: () => 
           type="button"
           onClick={handleSave}
           className="min-h-[48px] rounded-full text-[15px] font-semibold"
-          style={{ background: "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))", color: "var(--dl-bg)" }}
+          style={{ background: "linear-gradient(135deg, var(--dl-violet), var(--dl-together))", color: "var(--dl-text)" }}
         >
           Sparziel erstellen
         </button>
       </div>
-    </BottomSheet>
+    </FullscreenPage>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Trash2, Paperclip, TriangleAlert, X } from "lucide-react";
-import { BottomSheet } from "@/components/ui/BottomSheet";
+import { FullscreenPage } from "@/components/ui/FullscreenPage";
 import {
   ChipGroup,
   FieldLabel,
@@ -177,7 +177,7 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
   }
 
   return (
-    <BottomSheet
+    <FullscreenPage
       open={open}
       onClose={onClose}
       title={editEvent ? "Termin bearbeiten" : isBirthday ? "Geburtstag" : "Termin erstellen"}
@@ -443,6 +443,6 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
           </button>
         </div>
       </div>
-    </BottomSheet>
+    </FullscreenPage>
   );
 }

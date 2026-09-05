@@ -74,14 +74,20 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Deep midnight blue with very soft, large atmospheric light — never bright
+   enough to affect readability, no visible circles or hard edges. Shared by
+   the app body and FullscreenPage, so every full-screen surface (the app
+   itself, and every create/edit/detail page) reads as the same place. */
+.dl-atmosphere-bg,
 body {
-  /* Deep midnight blue with very soft, large atmospheric light — never
-     bright enough to affect readability, no visible circles or hard edges. */
   background:
     radial-gradient(circle at 0% 0%, rgba(72, 222, 244, 0.13), transparent 32%),
     radial-gradient(circle at 100% 92%, rgba(240, 90, 165, 0.11), transparent 36%),
     linear-gradient(180deg, var(--dl-bg) 0%, var(--dl-bg-deep) 100%);
   background-attachment: fixed;
+}
+
+body {
   color: var(--dl-text);
   font-family:
     -apple-system, BlinkMacSystemFont, var(--font-ui), "Segoe UI", Roboto,
