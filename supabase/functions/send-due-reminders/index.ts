@@ -20,6 +20,42 @@ import webpush from "npm:web-push@3.6.7";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+async function hmacHex(key: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(key),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(message));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// Advances a fired reminder to its next occurrence for a recurring event
+// (e.g. a yearly birthday) instead of marking it sent for good.
+function advanceRemindAt(remindAt: string, recurrenceRule: string): string {
+  const next = new Date(remindAt);
+  switch (recurrenceRule) {
+    case "daily":
+      next.setUTCDate(next.getUTCDate() + 1);
+      break;
+    case "weekly":
+      next.setUTCDate(next.getUTCDate() + 7);
+      break;
+    case "monthly":
+      next.setUTCMonth(next.getUTCMonth() + 1);
+      break;
+    case "yearly":
+      next.setUTCFullYear(next.getUTCFullYear() + 1);
+      break;
+  }
+  return next.toISOString();
+}
+
 Deno.serve(async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
@@ -45,7 +81,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: dueReminders, error: remindersError } = await supabase
     .from("reminders")
-    .select("id, family_id, event_id, task_id, message")
+    .select("id, family_id, event_id, task_id, message, remind_at")
     .eq("sent", false)
     .lte("remind_at", new Date().toISOString())
     .limit(100);
@@ -64,11 +100,12 @@ Deno.serve(async (req: Request) => {
   for (const reminder of dueReminders) {
     let title = "dayli Erinnerung";
     let body = reminder.message ?? "";
+    let recurrenceRule: string | null = null;
 
     if (reminder.event_id) {
       const { data: event } = await supabase
         .from("events")
-        .select("title, start_time, location")
+        .select("title, start_time, location, recurrence_rule")
         .eq("id", reminder.event_id)
         .maybeSingle();
       if (event) {
@@ -76,11 +113,14 @@ Deno.serve(async (req: Request) => {
         body = event.start_time
           ? `${String(event.start_time).slice(0, 5)} Uhr${event.location ? " · " + event.location : ""}`
           : (reminder.message ?? "");
+        recurrenceRule = event.recurrence_rule;
       }
     } else if (reminder.task_id) {
       const { data: task } = await supabase.from("tasks").select("title").eq("id", reminder.task_id).maybeSingle();
       if (task) title = `Erinnerung: ${task.title}`;
     }
+
+    const sig = await hmacHex(secrets.reminder_cron_secret, reminder.id);
 
     const { data: members } = await supabase
       .from("family_members")
@@ -99,7 +139,14 @@ Deno.serve(async (req: Request) => {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ title, body, tag: reminder.id }),
+          JSON.stringify({
+            title,
+            body,
+            tag: reminder.id,
+            reminderId: reminder.id,
+            sig,
+            hasTask: Boolean(reminder.task_id),
+          }),
         );
         sent++;
       } catch (err) {
@@ -110,7 +157,14 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    await supabase.from("reminders").update({ sent: true }).eq("id", reminder.id);
+    if (recurrenceRule && recurrenceRule !== "none") {
+      await supabase
+        .from("reminders")
+        .update({ remind_at: advanceRemindAt(reminder.remind_at, recurrenceRule), sent: false })
+        .eq("id", reminder.id);
+    } else {
+      await supabase.from("reminders").update({ sent: true }).eq("id", reminder.id);
+    }
   }
 
   return new Response(JSON.stringify({ processed: dueReminders.length, sent }), {

@@ -87,9 +87,16 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+// Called from a reminder-action button click below — fires without opening
+// the app, authenticated by the per-reminder signature the push payload
+// carried (see supabase/functions/reminder-action).
+const REMINDER_ACTION_URL = "https://jghfdzmvvizddomwqtzq.supabase.co/functions/v1/reminder-action";
+
 // Real Web Push: the send-due-reminders edge function posts a JSON payload
-// of { title, body, tag } — this is what lets a reminder reach the device
-// even with dayli fully closed, not just while a tab is open.
+// of { title, body, tag, reminderId, sig, hasTask } — this is what lets a
+// reminder reach the device even with dayli fully closed, not just while a
+// tab is open. reminderId/sig/hasTask back the "Erledigt"/"1 Std. später"
+// action buttons below.
 self.addEventListener("push", (event) => {
   let payload = { title: "dayli Erinnerung", body: "" };
   try {
@@ -98,21 +105,39 @@ self.addEventListener("push", (event) => {
     // ignore malformed payloads
   }
 
+  const actions = [{ action: "snooze", title: "1 Std. später" }];
+  if (payload.hasTask) actions.unshift({ action: "done", title: "Erledigt" });
+
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
       tag: payload.tag,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-96.png",
-      data: { url: "/" },
+      data: { url: "/", reminderId: payload.reminderId, sig: payload.sig },
+      actions: payload.reminderId && payload.sig ? actions : undefined,
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "/";
+  const { reminderId, sig, url } = event.notification.data ?? {};
 
+  if ((event.action === "done" || event.action === "snooze") && reminderId && sig) {
+    event.waitUntil(
+      fetch(REMINDER_ACTION_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reminderId, action: event.action, sig }),
+      }).catch(() => {
+        // Best-effort — nothing to show the user if this fails silently.
+      }),
+    );
+    return;
+  }
+
+  const targetUrl = url || "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsList) => {
       for (const client of clientsList) {

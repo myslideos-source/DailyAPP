@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 import { v4 as uuid } from "uuid";
-import { createDemoDataset, DEMO_NOTIFICATIONS } from "@/lib/demo-data";
+import { createDemoDataset, DEMO_NOTIFICATIONS, PROFILES } from "@/lib/demo-data";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { SupabaseAuthProvider, useSupabaseAuth } from "@/lib/store/auth-context";
 import * as repo from "@/lib/supabase/repository";
@@ -489,6 +489,22 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
             const existing = stateRef.current.tasks.find((t) => t.id === row.id);
             const task = repo.rowToTask(row, existing?.subtasks ?? []);
             dispatch({ type: payload.eventType === "INSERT" ? "ADD_TASK" : "UPDATE_TASK", payload: task });
+
+            // Surface the partner's shopping-list checks live, so ticking
+            // something off feels shared instead of silent.
+            const updatedBy = row.updated_by as string | null;
+            if (
+              payload.eventType === "UPDATE" &&
+              task.isShopping &&
+              task.done &&
+              existing &&
+              !existing.done &&
+              updatedBy &&
+              updatedBy !== profile?.id
+            ) {
+              const otherName = personId === "domenico" ? PROFILES.elisabeth.name : PROFILES.domenico.name;
+              showToast(`${otherName} hat „${task.title}“ abgehakt`);
+            }
           }
         },
       )
@@ -550,6 +566,10 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
+    // Resubscribes only when the family changes; profile/personId/showToast
+    // are read fresh inside the handler on each event, not captured stale —
+    // they only ever change together with familyId in practice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [familyId]);
 
   const value = useMemo<AppStoreValue>(() => {
@@ -617,7 +637,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         if (!existing) return;
         const merged = { ...existing, ...patch, updatedAt: new Date().toISOString() };
         dispatch({ type: "UPDATE_TASK", payload: merged });
-        void repo.updateTaskRow(id, patch);
+        void repo.updateTaskRow(id, patch, profile?.id ?? null);
       },
       deleteTask: (id) => {
         dispatch({ type: "DELETE_TASK", payload: { id } });
@@ -629,7 +649,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         const done = !existing.done;
         const doneAt = done ? new Date().toISOString() : null;
         dispatch({ type: "UPDATE_TASK", payload: { ...existing, done, doneAt, updatedAt: new Date().toISOString() } });
-        void repo.updateTaskRow(id, { done, doneAt });
+        void repo.updateTaskRow(id, { done, doneAt }, profile?.id ?? null);
       },
       toggleSubtask: (taskId, subtaskId) => {
         const task = stateRef.current.tasks.find((t) => t.id === taskId);

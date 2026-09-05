@@ -41,9 +41,17 @@ function categoryIdToKey(categories: CategoryRef[], id: string | null): EventCat
 // ---------------------------------------------------------------------------
 // reminders — kept in sync with an event's reminderMinutesBefore field so
 // the send-due-reminders edge function (and pg_cron) has something to poll.
-// Only fires for the base event's own date/time; recurring occurrences
-// beyond the first are not currently reminded.
+// All-day events (e.g. birthdays) have no intrinsic time, so their reminder
+// is anchored to a fixed local time of day instead.
+//
+// A recurring event's reminder only ever tracks ONE upcoming occurrence —
+// send-due-reminders itself advances remind_at to the next occurrence after
+// firing (rather than marking it sent) for events with recurrence !== "none",
+// so e.g. a yearly birthday reminder keeps repeating without the app needing
+// to be reopened.
 // ---------------------------------------------------------------------------
+
+const ALL_DAY_REMINDER_TIME = "09:00";
 
 function computeRemindAt(dateISO: string, startTime: string, minutesBefore: number) {
   const [hours, minutes] = startTime.split(":").map(Number);
@@ -56,13 +64,14 @@ function computeRemindAt(dateISO: string, startTime: string, minutesBefore: numb
 export async function syncEventReminder(familyId: string, event: CalendarEvent) {
   const supabase = client();
 
-  if (!event.reminderMinutesBefore || event.allDay || !event.startTime) {
+  const effectiveTime = event.allDay ? ALL_DAY_REMINDER_TIME : event.startTime;
+  if (!event.reminderMinutesBefore || !effectiveTime) {
     const { error } = await supabase.from("reminders").delete().eq("event_id", event.id);
     if (error) throw error;
     return;
   }
 
-  const remindAt = computeRemindAt(event.date, event.startTime, event.reminderMinutesBefore);
+  const remindAt = computeRemindAt(event.date, effectiveTime, event.reminderMinutesBefore);
   const { error: deleteError } = await supabase.from("reminders").delete().eq("event_id", event.id);
   if (deleteError) throw deleteError;
   const { error: insertError } = await supabase.from("reminders").insert({
@@ -305,6 +314,7 @@ export async function insertTask(
       is_shopping: task.isShopping,
       linked_event_id: task.linkedEventId ?? null,
       created_by: profileId,
+      updated_by: profileId,
     })
     .select()
     .single();
@@ -323,7 +333,7 @@ export async function insertTask(
   return rowToTask(data, subtasks);
 }
 
-export async function updateTaskRow(id: string, patch: Partial<TaskItem>) {
+export async function updateTaskRow(id: string, patch: Partial<TaskItem>, updatedBy: string | null) {
   const update: Database["public"]["Tables"]["tasks"]["Update"] = {};
   if (patch.title !== undefined) update.title = patch.title;
   if (patch.assignee !== undefined) update.assignee = patch.assignee;
@@ -333,6 +343,7 @@ export async function updateTaskRow(id: string, patch: Partial<TaskItem>) {
   if (patch.doneAt !== undefined) update.done_at = patch.doneAt;
   if (patch.recurrence !== undefined) update.recurrence_rule = patch.recurrence;
   if (patch.isShopping !== undefined) update.is_shopping = patch.isShopping;
+  if (updatedBy) update.updated_by = updatedBy;
 
   const { error } = await client().from("tasks").update(update).eq("id", id);
   if (error) throw error;
@@ -390,6 +401,36 @@ export async function insertSavingsEntry(
 export async function markNotificationReadRow(id: string) {
   const { error } = await client().from("notifications").update({ read: true }).eq("id", id);
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// automatic backups — written weekly by the send-weekly-backup edge function
+// ---------------------------------------------------------------------------
+
+export interface BackupSnapshotRef {
+  id: string;
+  storagePath: string;
+  createdAt: string;
+}
+
+export async function listBackupSnapshots(familyId: string): Promise<BackupSnapshotRef[]> {
+  const { data, error } = await client()
+    .from("backup_snapshots")
+    .select("id, storage_path, created_at")
+    .eq("family_id", familyId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    storagePath: row.storage_path as string,
+    createdAt: row.created_at as string,
+  }));
+}
+
+export async function getBackupSignedUrl(storagePath: string): Promise<string> {
+  const { data, error } = await client().storage.from("backups").createSignedUrl(storagePath, 60);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export { rowToEvent, rowToTask, rowToGoal, rowToEntry, rowToNotification };
