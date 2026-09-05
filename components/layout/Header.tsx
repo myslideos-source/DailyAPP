@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { motion } from "motion/react";
-import { Bell } from "lucide-react";
+import { Bell, MoreHorizontal } from "lucide-react";
 import { useAppStore } from "@/lib/store/app-store";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { IconButton } from "@/components/ui/IconButton";
@@ -53,6 +54,16 @@ export function Header({ onOpenNotifications }: { onOpenNotifications: () => voi
               />
             )}
           </IconButton>
+          {/* The Dayli Dock only carries Heute/Kalender/Aufgaben — Mehr
+              (Profil, Sparziele, Backup, Einstellungen …) needs its own
+              entry point on mobile; desktop already has it in the sidebar. */}
+          <Link
+            href="/mehr"
+            aria-label="Mehr öffnen"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--dl-text)] transition-colors hover:bg-white/5 md:hidden"
+          >
+            <MoreHorizontal size={19} strokeWidth={1.8} />
+          </Link>
         </div>
       </div>
     </header>

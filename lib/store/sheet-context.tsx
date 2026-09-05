@@ -5,6 +5,7 @@ import type { QuickAddKind } from "@/components/sheets/QuickAddMenu";
 
 export type ActiveSheet =
   | { kind: "menu" }
+  | { kind: "quickCreate" }
   | { kind: "newEvent"; date?: string }
   | { kind: "newEventManual"; date?: string }
   | { kind: "event"; editEventId: string }
@@ -12,12 +13,17 @@ export type ActiveSheet =
   | { kind: "reminder" }
   | { kind: "shopping" }
   | { kind: "birthday" }
+  | { kind: "freeTime" }
   | { kind: "notifications" }
   | null;
 
 interface SheetContextValue {
   sheet: ActiveSheet;
   openQuickAddMenu: () => void;
+  /** The compact "Neu erstellen" popover anchored above the Dayli Dock's
+   * brand orb on mobile — a leaner set of actions than the desktop grid
+   * sheet (`openQuickAddMenu`), per the Dayli Dock spec. */
+  openQuickCreateMenu: () => void;
   /** The default "Neuer Termin" flow: natural-language text/voice input
    * with live-recognized fields, per the current design. */
   openNewEvent: (date?: string) => void;
@@ -29,6 +35,7 @@ interface SheetContextValue {
    * whole series' anchor date — see EventFormSheet. */
   openEditEvent: (eventId: string) => void;
   openQuickAdd: (kind: QuickAddKind) => void;
+  openFreeTime: () => void;
   openNotifications: () => void;
   close: () => void;
 }
@@ -42,10 +49,12 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
     () => ({
       sheet,
       openQuickAddMenu: () => setSheet({ kind: "menu" }),
+      openQuickCreateMenu: () => setSheet({ kind: "quickCreate" }),
       openNewEvent: (date) => setSheet({ kind: "newEvent", date }),
       openManualNewEvent: (date) => setSheet({ kind: "newEventManual", date }),
       openEditEvent: (eventId) => setSheet({ kind: "event", editEventId: eventId }),
       openQuickAdd: (kind) => setSheet({ kind }),
+      openFreeTime: () => setSheet({ kind: "freeTime" }),
       openNotifications: () => setSheet({ kind: "notifications" }),
       close: () => setSheet(null),
     }),
