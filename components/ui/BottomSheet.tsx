@@ -91,7 +91,7 @@ export function BottomSheet({
                 </h2>
               </div>
             )}
-            <div className="safe-bottom overflow-y-auto px-5 pb-5">{children}</div>
+            <div className="safe-bottom overflow-x-hidden overflow-y-auto px-5 pb-5">{children}</div>
           </motion.div>
         </div>
       )}

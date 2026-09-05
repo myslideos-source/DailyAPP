@@ -107,11 +107,11 @@ export function TaskFormSheet({
 
         {kind !== "shopping" && (
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="min-w-0">
               <FieldLabel>{kind === "reminder" ? "Datum" : "Fällig am"}</FieldLabel>
               <TextField type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
-            <div>
+            <div className="min-w-0">
               <FieldLabel>Priorität</FieldLabel>
               <ChipGroup
                 ariaLabel="Priorität"

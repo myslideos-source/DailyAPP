@@ -155,12 +155,12 @@ export function QuickAddPreviewSheet({ open, draft }: { open: boolean; draft: Pa
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <FieldLabel>Datum</FieldLabel>
             <TextField type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <UncertainNote question={dateQuestion} />
           </div>
-          <div>
+          <div className="min-w-0">
             <FieldLabel>Uhrzeit</FieldLabel>
             <TextField type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             <UncertainNote question={startTimeQuestion} />
