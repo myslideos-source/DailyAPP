@@ -40,6 +40,7 @@ const REMINDER_OPTIONS = [
   { value: "30", label: "30 Min. vorher" },
   { value: "60", label: "1 Std. vorher" },
   { value: "1440", label: "1 Tag vorher" },
+  { value: "10080", label: "1 Woche vorher" },
 ];
 
 interface Props {
@@ -99,7 +100,7 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
       setCategory(presetCategory ?? "familie");
       setLocation("");
       setNotes("");
-      setReminder("");
+      setReminder(isBirthday ? "10080" : "");
       setRecurrence(isBirthday ? "yearly" : "none");
       setAttachment(null);
     }

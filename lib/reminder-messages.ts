@@ -7,8 +7,12 @@
 import { fromISODate, relativeDayPhrase } from "@/lib/date-utils";
 import type { CalendarEvent, TaskItem } from "@/lib/types";
 
-export function computeEventRemindAt(dateISO: string, startTime: string, minutesBefore: number) {
-  const [hours, minutes] = startTime.split(":").map(Number);
+// All-day events (e.g. birthdays) have no intrinsic time, so their reminder
+// is anchored to a fixed local time of day instead.
+const ALL_DAY_REMINDER_TIME = "09:00";
+
+export function computeEventRemindAt(dateISO: string, startTime: string | null, minutesBefore: number) {
+  const [hours, minutes] = (startTime ?? ALL_DAY_REMINDER_TIME).split(":").map(Number);
   const start = new Date(`${dateISO}T00:00:00`);
   start.setHours(hours, minutes, 0, 0);
   start.setMinutes(start.getMinutes() - minutesBefore);

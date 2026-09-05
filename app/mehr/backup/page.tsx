@@ -1,11 +1,65 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Download, Upload, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, Upload, TriangleAlert, History } from "lucide-react";
 import { BackLink } from "@/components/mehr/BackLink";
 import { useAppStore } from "@/lib/store/app-store";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { useOptionalSupabaseAuth } from "@/lib/store/auth-context";
 import { downloadBackup, parseBackup, serializeBackup } from "@/lib/backup";
+import { listBackupSnapshots, getBackupSignedUrl, type BackupSnapshotRef } from "@/lib/supabase/repository";
+import { formatLongDate } from "@/lib/date-utils";
+
+function AutomaticBackups() {
+  const familyId = useOptionalSupabaseAuth()?.profile?.familyId ?? null;
+  const [snapshots, setSnapshots] = useState<BackupSnapshotRef[] | null>(null);
+
+  useEffect(() => {
+    if (!familyId) return;
+    let cancelled = false;
+    listBackupSnapshots(familyId).then(
+      (rows) => !cancelled && setSnapshots(rows),
+      () => !cancelled && setSnapshots([]),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [familyId]);
+
+  async function handleDownload(storagePath: string) {
+    const url = await getBackupSignedUrl(storagePath);
+    window.open(url, "_blank", "noopener");
+  }
+
+  if (!snapshots || snapshots.length === 0) return null;
+
+  return (
+    <div className="mt-6">
+      <p className="mb-2.5 text-[12.5px] font-medium" style={{ color: "var(--dl-text-dim)" }}>
+        Automatische Sicherungen
+      </p>
+      <div className="flex flex-col gap-2">
+        {snapshots.slice(0, 5).map((snap) => (
+          <button
+            key={snap.id}
+            type="button"
+            onClick={() => handleDownload(snap.storagePath)}
+            className="flex min-h-[46px] items-center gap-3 rounded-[14px] border px-3.5 py-2 text-left"
+            style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
+          >
+            <History size={16} style={{ color: "var(--dl-text-faint)" }} />
+            <span className="text-[13.5px]" style={{ color: "var(--dl-text)" }}>
+              {formatLongDate(new Date(snap.createdAt))}
+            </span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-[12px]" style={{ color: "var(--dl-text-faint)" }}>
+        Wird jede Woche automatisch erstellt — nur zur Sicherheit, nicht zum Wiederherstellen in der App gedacht.
+      </p>
+    </div>
+  );
+}
 
 export default function BackupPage() {
   const { events, tasks, savingsGoals, savingsEntries, notifications, restoreFromBackup, showToast } = useAppStore();
@@ -106,6 +160,8 @@ export default function BackupPage() {
           </button>
         )}
         <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChosen} />
+
+        {isSupabaseConfigured && <AutomaticBackups />}
 
         {error && (
           <p role="alert" className="text-[13px]" style={{ color: "var(--dl-danger)" }}>

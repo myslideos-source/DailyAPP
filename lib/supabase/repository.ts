@@ -47,16 +47,22 @@ function categoryIdToKey(categories: CategoryRef[], id: string | null): EventCat
 // ---------------------------------------------------------------------------
 // reminders — kept in sync with an event's/task's reminderMinutesBefore
 // field so the send-due-reminders edge function (and pg_cron) has
-// something to poll. Only fires for the base event's own date/time;
-// recurring occurrences beyond the first are not currently reminded.
-// A stored `message` carries prep-task-aware copy (see lib/reminder-
+// something to poll. computeEventRemindAt anchors all-day events (e.g.
+// birthdays) to a fixed local time of day, since they have no intrinsic
+// time. A stored `message` carries prep-task-aware copy (see lib/reminder-
 // messages.ts) so the edge function and the in-app bell don't re-derive it.
+//
+// A recurring event's reminder only ever tracks ONE upcoming occurrence —
+// send-due-reminders itself advances remind_at to the next occurrence after
+// firing (rather than marking it sent) for events with recurrence !== "none",
+// so e.g. a yearly birthday reminder keeps repeating without the app needing
+// to be reopened.
 // ---------------------------------------------------------------------------
 
 export async function syncEventReminder(familyId: string, event: CalendarEvent) {
   const supabase = client();
 
-  if (!event.reminderMinutesBefore || event.allDay || !event.startTime) {
+  if (!event.reminderMinutesBefore) {
     const { error } = await supabase.from("reminders").delete().eq("event_id", event.id);
     if (error) throw error;
     return;
@@ -342,6 +348,7 @@ export async function insertTask(
       reminder_minutes_before: task.reminderMinutesBefore ?? null,
       sort_order: task.sortOrder ?? 0,
       created_by: profileId,
+      updated_by: profileId,
     })
     .select()
     .single();
@@ -371,6 +378,7 @@ export async function updateTaskRow(
   id: string,
   patch: Partial<TaskItem>,
   merged: TaskItem,
+  updatedBy: string | null,
   linkedEvent?: CalendarEvent | null,
 ) {
   const update: Database["public"]["Tables"]["tasks"]["Update"] = {};
@@ -385,6 +393,7 @@ export async function updateTaskRow(
   if (patch.linkedEventId !== undefined) update.linked_event_id = patch.linkedEventId ?? null;
   if (patch.reminderMinutesBefore !== undefined) update.reminder_minutes_before = patch.reminderMinutesBefore;
   if (patch.sortOrder !== undefined) update.sort_order = patch.sortOrder;
+  if (updatedBy) update.updated_by = updatedBy;
 
   const { error } = await client().from("tasks").update(update).eq("id", id);
   if (error) throw error;
@@ -456,6 +465,36 @@ export async function insertSavingsEntry(
 export async function markNotificationReadRow(id: string) {
   const { error } = await client().from("notifications").update({ read: true }).eq("id", id);
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// automatic backups — written weekly by the send-weekly-backup edge function
+// ---------------------------------------------------------------------------
+
+export interface BackupSnapshotRef {
+  id: string;
+  storagePath: string;
+  createdAt: string;
+}
+
+export async function listBackupSnapshots(familyId: string): Promise<BackupSnapshotRef[]> {
+  const { data, error } = await client()
+    .from("backup_snapshots")
+    .select("id, storage_path, created_at")
+    .eq("family_id", familyId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    storagePath: row.storage_path as string,
+    createdAt: row.created_at as string,
+  }));
+}
+
+export async function getBackupSignedUrl(storagePath: string): Promise<string> {
+  const { data, error } = await client().storage.from("backups").createSignedUrl(storagePath, 60);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export { rowToEvent, rowToTask, rowToGoal, rowToEntry, rowToNotification };

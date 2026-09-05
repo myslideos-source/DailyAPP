@@ -19,6 +19,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      backup_snapshots: {
+        Row: {
+          created_at: string
+          family_id: string
+          id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          family_id: string
+          id?: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          family_id?: string
+          id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backup_snapshots_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           color: string | null
@@ -587,6 +616,7 @@ export type Database = {
           sort_order: number
           title: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           assignee?: string
@@ -605,6 +635,7 @@ export type Database = {
           sort_order?: number
           title: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           assignee?: string
@@ -623,6 +654,7 @@ export type Database = {
           sort_order?: number
           title?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -644,6 +676,13 @@ export type Database = {
             columns: ["linked_event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -686,7 +725,7 @@ export type Database = {
     }
     Functions: {
       get_reminder_secrets: {
-        Args: Record<string, never>
+        Args: never
         Returns: {
           name: string
           secret: string
@@ -694,7 +733,7 @@ export type Database = {
       }
       is_family_member: { Args: { target_family_id: string }; Returns: boolean }
       is_family_owner: { Args: { target_family_id: string }; Returns: boolean }
-      join_family_slot: { Args: Record<string, never>; Returns: string }
+      join_family_slot: { Args: never; Returns: string }
       seed_default_categories: {
         Args: { target_family_id: string }
         Returns: undefined
