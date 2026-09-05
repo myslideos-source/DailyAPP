@@ -1,7 +1,7 @@
 "use client";
 
 import { BellOff } from "lucide-react";
-import { BottomSheet } from "@/components/ui/BottomSheet";
+import { FullscreenPage } from "@/components/ui/FullscreenPage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useAppStore } from "@/lib/store/app-store";
 
@@ -9,7 +9,16 @@ export function NotificationsSheet({ open, onClose }: { open: boolean; onClose: 
   const { notifications, markNotificationRead } = useAppStore();
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Benachrichtigungen">
+    <FullscreenPage
+      open={open}
+      onClose={onClose}
+      title="Benachrichtigungen"
+      leftAction={
+        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "var(--dl-text-dim)" }}>
+          Schließen
+        </button>
+      }
+    >
       {notifications.length === 0 ? (
         <EmptyState icon={BellOff} title="Keine Benachrichtigungen" description="Ihr seid auf dem Laufenden." />
       ) : (
@@ -42,6 +51,6 @@ export function NotificationsSheet({ open, onClose }: { open: boolean; onClose: 
           ))}
         </ul>
       )}
-    </BottomSheet>
+    </FullscreenPage>
   );
 }

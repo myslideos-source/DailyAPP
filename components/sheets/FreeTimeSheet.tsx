@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { addDays } from "date-fns";
 import { Users } from "lucide-react";
-import { BottomSheet } from "@/components/ui/BottomSheet";
+import { FullscreenPage } from "@/components/ui/FullscreenPage";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSheet } from "@/lib/store/sheet-context";
 import { expandEventsForDay } from "@/lib/recurrence";
@@ -37,7 +37,16 @@ export function FreeTimeSheet({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Freie Zeit finden">
+    <FullscreenPage
+      open={open}
+      onClose={onClose}
+      title="Freie Zeit finden"
+      leftAction={
+        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "var(--dl-text-dim)" }}>
+          Schließen
+        </button>
+      }
+    >
       <div className="flex flex-col gap-5 pt-1">
         <p className="text-[13.5px]" style={{ color: "var(--dl-text-dim)" }}>
           Gemeinsame freie Fenster zwischen 08:00 und 22:00 Uhr — Zeiten, in denen keiner von euch beiden etwas geplant hat.
@@ -81,6 +90,6 @@ export function FreeTimeSheet({ open, onClose }: { open: boolean; onClose: () =>
           );
         })}
       </div>
-    </BottomSheet>
+    </FullscreenPage>
   );
 }

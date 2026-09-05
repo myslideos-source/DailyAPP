@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { v4 as uuid } from "uuid";
-import { BottomSheet } from "@/components/ui/BottomSheet";
+import { FullscreenPage } from "@/components/ui/FullscreenPage";
 import { ChipGroup, FieldLabel, TextField } from "@/components/ui/FormControls";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSavePulse } from "@/lib/store/save-pulse-context";
@@ -93,7 +93,26 @@ export function TaskFormSheet({
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={TITLES[kind]}>
+    <FullscreenPage
+      open={open}
+      onClose={onClose}
+      title={TITLES[kind]}
+      leftAction={
+        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "var(--dl-text-dim)" }}>
+          Abbrechen
+        </button>
+      }
+      rightAction={
+        <button
+          type="button"
+          onClick={handleSave}
+          className="text-[15px] font-semibold"
+          style={{ color: "var(--dl-together)" }}
+        >
+          Speichern
+        </button>
+      }
+    >
       <div className="flex flex-col gap-4">
         <div>
           <FieldLabel>Titel</FieldLabel>
@@ -193,13 +212,13 @@ export function TaskFormSheet({
           onClick={handleSave}
           className="min-h-[48px] rounded-full text-[15px] font-semibold"
           style={{
-            background: "linear-gradient(135deg, var(--dl-domenico), var(--dl-elisabeth))",
-            color: "var(--dl-bg)",
+            background: "linear-gradient(135deg, var(--dl-violet), var(--dl-together))",
+            color: "var(--dl-text)",
           }}
         >
           Speichern
         </button>
       </div>
-    </BottomSheet>
+    </FullscreenPage>
   );
 }
