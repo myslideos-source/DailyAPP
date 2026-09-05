@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { Bell, Calendar, ChevronRight, Mic, MapPin, Plus, Square, TriangleAlert, X } from "lucide-react";
+import { Bell, Calendar, ChevronRight, Mic, MapPin, Plus, SlidersHorizontal, Square, TriangleAlert, X } from "lucide-react";
 import { FullscreenPage } from "@/components/ui/FullscreenPage";
 import { TextAreaField } from "@/components/ui/FormControls";
 import { useAppStore } from "@/lib/store/app-store";
@@ -217,82 +217,94 @@ export function NewEventSheet({
         </button>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <div
-          className="rounded-[16px] border p-3.5"
-          style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
+          className="rounded-[17px] p-4"
+          style={{
+            background: "rgba(13, 18, 42, 0.45)",
+            border: "1px solid rgba(140, 150, 255, 0.2)",
+            boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+          }}
         >
-          <p className="mb-1.5 text-[13px] font-medium" style={{ color: "var(--dl-text-dim)" }}>
-            Was steht an?
-          </p>
-          <div className="flex items-start gap-2">
-            <TextAreaField
-              autoFocus
-              rows={2}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={EXAMPLE}
-              className="!border-0 !bg-transparent !p-0 text-[16px] leading-snug"
-            />
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[13px] font-medium" style={{ color: "var(--dl-text-dim)" }}>
+              Was steht an?
+            </p>
             <motion.button
               type="button"
               onClick={handleMicClick}
               aria-label={listening ? "Aufnahme stoppen" : "Spracheingabe starten"}
               disabled={effectiveStatus === "nicht unterstützt"}
-              animate={listening && !reducedMotion ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+              animate={listening && !reducedMotion ? { scale: [1, 1.15, 1] } : { scale: 1 }}
               transition={
                 listening && !reducedMotion
                   ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
                   : { duration: 0.15 }
               }
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border disabled:opacity-40"
-              style={{
-                borderColor: listening ? "var(--dl-together)" : "var(--dl-border-strong)",
-                background: listening ? "var(--dl-together-soft)" : "transparent",
-              }}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full disabled:opacity-40"
+              style={{ color: listening ? "var(--dl-together)" : "var(--dl-text-faint)" }}
             >
-              {listening ? (
-                <Square size={15} style={{ color: "var(--dl-together)" }} fill="var(--dl-together)" />
-              ) : (
-                <Mic size={17} style={{ color: "var(--dl-text-dim)" }} />
-              )}
+              {listening ? <Square size={13} fill="currentColor" /> : <Mic size={15} />}
             </motion.button>
           </div>
+          <TextAreaField
+            autoFocus
+            rows={2}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={EXAMPLE}
+            className="!border-0 !bg-transparent !p-0 mt-1 text-[16px] leading-snug"
+          />
           {STATUS_TEXT[effectiveStatus] && (
             <p className="mt-1.5 text-[12px]" style={{ color: "var(--dl-text-faint)" }}>
               {STATUS_TEXT[effectiveStatus]}
             </p>
           )}
-        </div>
 
-        {recognizedLabel && (
-          <div className="flex items-center gap-3 rounded-[16px] border p-3.5" style={{ borderColor: "var(--dl-border)" }}>
-            <Calendar size={18} style={{ color: "var(--dl-text-dim)" }} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-semibold" style={{ color: "var(--dl-text)" }}>
-                {recognizedLabel}
-              </p>
-              <p className="text-[12px]" style={{ color: "var(--dl-text-faint)" }}>
-                Aus deinem Text erkannt
-              </p>
+          {recognizedLabel && (
+            <div
+              className="mt-3.5 flex items-center gap-3 border-t pt-3.5"
+              style={{ borderColor: "rgba(140, 150, 255, 0.16)" }}
+            >
+              <Calendar size={18} style={{ color: "var(--dl-text)" }} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-semibold" style={{ color: "var(--dl-text)" }}>
+                  {recognizedLabel}
+                </p>
+                <p className="text-[12px]" style={{ color: "var(--dl-text-faint)" }}>
+                  Aus deinem Text erkannt
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div>
           <p className="mb-2 text-[16px] font-bold" style={{ color: "var(--dl-text)" }}>
             Für wen?
           </p>
-          <div className="flex rounded-full border p-1" style={{ borderColor: "var(--dl-border)" }}>
+          <div
+            className="flex rounded-[15px] border p-1"
+            style={{ borderColor: "rgba(140, 150, 255, 0.22)" }}
+          >
             {ASSIGNEE_OPTIONS.map((opt) => {
               const active = opt.value === assignee;
+              const color = assigneeColor(opt.value);
               return (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setAssignee(opt.value)}
-                  className="min-h-[40px] flex-1 rounded-full text-[13.5px] font-semibold transition-colors duration-200"
-                  style={active ? { background: assigneeColor(opt.value), color: "var(--dl-bg)" } : { color: "var(--dl-text-dim)" }}
+                  className="min-h-[36px] flex-1 rounded-[12px] text-[13.5px] font-semibold transition-colors duration-200"
+                  style={
+                    active
+                      ? {
+                          background: `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 65%, white))`,
+                          color: "var(--dl-text)",
+                          boxShadow: `0 0 10px color-mix(in srgb, ${color} 45%, transparent)`,
+                        }
+                      : { color: "var(--dl-text-dim)" }
+                  }
                 >
                   {opt.label}
                 </button>
@@ -319,16 +331,19 @@ export function NewEventSheet({
           </div>
         )}
 
-        <div className="flex flex-col divide-y rounded-[16px] border" style={{ borderColor: "var(--dl-border)" }}>
-          <div className="relative flex items-center gap-3 px-3.5 py-3.5">
-            <Bell size={17} style={{ color: "var(--dl-text-dim)" }} />
+        <div className="flex flex-col">
+          <div
+            className="relative flex items-center gap-3 border-b py-3.5"
+            style={{ borderColor: "rgba(140, 150, 255, 0.16)" }}
+          >
+            <Bell size={17} style={{ color: "var(--dl-text)" }} />
             <span className="flex-1 text-[15px] font-medium" style={{ color: "var(--dl-text)" }}>
               Erinnerung
             </span>
             <span className="text-[14px]" style={{ color: "var(--dl-text-dim)" }}>
               {REMINDER_OPTIONS.find((o) => o.value === reminder)?.label ?? "Keine"}
             </span>
-            <ChevronRight size={16} style={{ color: "var(--dl-text-faint)" }} />
+            <ChevronRight size={16} style={{ color: "var(--dl-together)", opacity: 0.65 }} />
             <select
               value={reminder}
               onChange={(e) => setReminder(e.target.value)}
@@ -342,8 +357,8 @@ export function NewEventSheet({
               ))}
             </select>
           </div>
-          <div className="flex items-center gap-3 px-3.5 py-3.5" style={{ borderColor: "var(--dl-border)" }}>
-            <MapPin size={17} style={{ color: "var(--dl-text-dim)" }} />
+          <div className="flex items-center gap-3 py-3.5">
+            <MapPin size={17} style={{ color: "var(--dl-text)" }} />
             <span className="text-[15px] font-medium" style={{ color: "var(--dl-text)" }}>
               Ort
             </span>
@@ -361,12 +376,15 @@ export function NewEventSheet({
           <p className="mb-2 text-[16px] font-bold" style={{ color: "var(--dl-text)" }}>
             Aufgaben
           </p>
-          <div className="flex flex-col gap-1 rounded-[16px] border" style={{ borderColor: "var(--dl-border)" }}>
+          <div
+            className="flex flex-col rounded-[16px]"
+            style={{ background: "rgba(13, 18, 42, 0.35)", border: "1px solid rgba(140, 150, 255, 0.18)" }}
+          >
             {prepTasks.map((task, i) => (
               <div
                 key={i}
                 className="flex items-center gap-2.5 border-b px-3.5 py-3 last:border-b-0"
-                style={{ borderColor: "var(--dl-border)" }}
+                style={{ borderColor: "rgba(140, 150, 255, 0.14)" }}
               >
                 <span className="h-[18px] w-[18px] shrink-0 rounded-[6px] border" style={{ borderColor: "var(--dl-border-strong)" }} />
                 <input
@@ -387,10 +405,10 @@ export function NewEventSheet({
             <button
               type="button"
               onClick={() => setPrepTasks((prev) => [...prev, ""])}
-              className="flex min-h-[48px] items-center gap-2 px-3.5 text-[14px] font-medium"
-              style={{ color: "var(--dl-together)" }}
+              className="flex min-h-[48px] items-center gap-2.5 px-3.5 text-[14px] font-medium"
+              style={{ color: "var(--dl-text-dim)" }}
             >
-              <Plus size={16} className="rounded-full" style={{ border: "1.5px solid var(--dl-together)" }} />
+              <Plus size={16} className="rounded-full" style={{ border: "1.5px solid var(--dl-together)", color: "var(--dl-together)" }} />
               Aufgabe hinzufügen
             </button>
           </div>
@@ -399,10 +417,17 @@ export function NewEventSheet({
         <button
           type="button"
           onClick={handleAdvanced}
-          className="text-[13.5px] font-medium underline"
-          style={{ color: "var(--dl-text-dim)" }}
+          className="flex min-h-[44px] items-center gap-3 border-t py-3 text-left"
+          style={{ borderColor: "rgba(140, 150, 255, 0.16)" }}
         >
-          Mehr Optionen (Kategorie, Wiederholung, Notizen …)
+          <SlidersHorizontal size={17} style={{ color: "var(--dl-text)" }} />
+          <span className="flex-1 text-[15px] font-medium" style={{ color: "var(--dl-text)" }}>
+            Mehr Optionen
+          </span>
+          <span className="text-[12.5px]" style={{ color: "var(--dl-text-dim)" }}>
+            Kategorie, Notizen …
+          </span>
+          <ChevronRight size={16} style={{ color: "var(--dl-together)", opacity: 0.65 }} />
         </button>
 
         {error && (
@@ -415,9 +440,11 @@ export function NewEventSheet({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="min-h-[52px] rounded-full text-[16px] font-semibold disabled:opacity-60"
+          className="min-h-[60px] rounded-[18px] text-[16px] font-bold disabled:opacity-60"
           style={{
-            background: "linear-gradient(135deg, var(--dl-violet), var(--dl-together))",
+            background: "linear-gradient(135deg, #7545e9 0%, #8f4ef2 55%, #6b2f99 100%)",
+            border: "1px solid rgba(190, 150, 255, 0.5)",
+            boxShadow: "0 0 20px rgba(143, 78, 242, 0.35)",
             color: "var(--dl-text)",
           }}
         >
