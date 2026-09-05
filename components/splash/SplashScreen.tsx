@@ -3,12 +3,37 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "motion/react";
+import { Heart, Sparkle, Check } from "lucide-react";
 import { useSplash } from "@/lib/store/splash-context";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { useAppStore } from "@/lib/store/app-store";
 
 const FIRST_RUN_MS = 1700;
 const RETURN_MS = 650;
+
+// Small decorations twinkling around the orbit ring, one after another, in
+// roughly the positions of the reference artwork (percentages of the
+// 320×180 orbit box). Colors reuse the app's own Domenico/Elisabeth/together
+// palette rather than inventing new ones.
+const ORBIT_ICONS: {
+  icon: typeof Heart;
+  left: string;
+  top: string;
+  size: number;
+  color: string;
+  delay: number;
+}[] = [
+  { icon: Heart, left: "20%", top: "16%", size: 15, color: "var(--dl-elisabeth)", delay: 0.35 },
+  { icon: Sparkle, left: "63%", top: "10%", size: 13, color: "var(--dl-together)", delay: 0.55 },
+  { icon: Sparkle, left: "16%", top: "62%", size: 11, color: "var(--dl-domenico)", delay: 0.75 },
+  { icon: Check, left: "76%", top: "70%", size: 14, color: "var(--dl-domenico)", delay: 0.95 },
+];
+
+const ORBIT_DOTS: { left: string; top: string; size: number; color: string; delay: number }[] = [
+  { left: "88%", top: "36%", size: 6, color: "var(--dl-together)", delay: 0.65 },
+  { left: "6%", top: "44%", size: 4, color: "var(--dl-elisabeth)", delay: 1.05 },
+  { left: "84%", top: "12%", size: 5, color: "var(--dl-domenico)", delay: 0.45 },
+];
 
 export function SplashScreen() {
   const { splashDone, isReturningVisit, finishSplash } = useSplash();
@@ -69,79 +94,88 @@ export function SplashScreen() {
           )}
 
           <div className="relative flex flex-col items-center gap-6">
-            {/* Phase 2 — logo, shared-layout target for the header logo */}
-            <motion.div
-              layoutId={reducedMotion ? undefined : "dayli-logo"}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{
-                layout: { type: "spring", stiffness: 210, damping: 24 },
-                opacity: { duration: 0.5, ease: "easeOut" },
-                scale: { type: "spring", stiffness: 190, damping: 18 },
-              }}
-              className="relative h-16 w-[152px]"
-            >
-              <Image
-                src="/brand/logo.png"
-                alt="dayli"
-                fill
-                priority
-                sizes="152px"
-                className="object-contain"
-              />
-
+            {/* Phase 2 — orbit ring + twinkling cluster around the logo */}
+            <div className="relative flex h-[180px] w-[320px] items-center justify-center">
               {showBrandBeats && (
-                <>
-                  {/* Phase 3a — single light sweep across the logo silhouette,
-                      masked to the artwork's own alpha so nothing is redrawn. */}
-                  <motion.div
+                <motion.div
+                  className="absolute inset-0"
+                  animate={{ opacity: visible ? 1 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <svg
                     aria-hidden
-                    className="absolute inset-0"
-                    style={{
-                      WebkitMaskImage: "url(/brand/logo.png)",
-                      WebkitMaskSize: "contain",
-                      WebkitMaskRepeat: "no-repeat",
-                      WebkitMaskPosition: "center",
-                      maskImage: "url(/brand/logo.png)",
-                      maskSize: "contain",
-                      maskRepeat: "no-repeat",
-                      maskPosition: "center",
-                    }}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: [0, 1, 0] }}
-                    transition={{ delay: 0.55, duration: 0.9, ease: "easeInOut" }}
+                    viewBox="0 0 320 180"
+                    className="pointer-events-none absolute inset-0 h-full w-full"
                   >
-                    <div
-                      className="h-full w-full"
-                      style={{
-                        background:
-                          "linear-gradient(100deg, transparent 30%, rgba(99,216,244,0.9) 46%, rgba(255,255,255,0.9) 50%, rgba(234,130,183,0.9) 54%, transparent 70%)",
-                        backgroundSize: "260% 100%",
-                        animation: "dl-sweep 0.9s ease-in-out 0.55s 1",
+                    <defs>
+                      <linearGradient id="dl-orbit-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="var(--dl-domenico)" />
+                        <stop offset="50%" stopColor="var(--dl-together)" />
+                        <stop offset="100%" stopColor="var(--dl-elisabeth)" />
+                      </linearGradient>
+                    </defs>
+                    <motion.ellipse
+                      cx="160"
+                      cy="90"
+                      rx="142"
+                      ry="58"
+                      transform="rotate(-16 160 90)"
+                      fill="none"
+                      stroke="url(#dl-orbit-gradient)"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: [0, 0.9, 0.55] }}
+                      transition={{
+                        pathLength: { duration: 1.3, ease: "easeInOut", delay: 0.15 },
+                        opacity: { duration: 1.6, times: [0, 0.6, 1], delay: 0.15 },
                       }}
                     />
-                  </motion.div>
+                  </svg>
 
-                  {/* Phase 3b — soft single pulse over the star/heart cluster */}
-                  <motion.div
-                    aria-hidden
-                    className="absolute rounded-full"
-                    style={{
-                      right: "-6%",
-                      top: "-18%",
-                      width: "26%",
-                      height: "26%",
-                      background:
-                        "radial-gradient(circle, rgba(255,255,255,0.9), rgba(234,130,183,0.5) 60%, transparent 80%)",
-                      filter: "blur(3px)",
-                    }}
-                    initial={{ opacity: 0, scale: 0.7 }}
-                    animate={{ opacity: [0, 0.9, 0], scale: [0.7, 1.15, 1] }}
-                    transition={{ delay: 1.1, duration: 0.7, ease: "easeOut" }}
-                  />
-                </>
+                  {ORBIT_ICONS.map(({ icon: Icon, left, top, size, color, delay }, i) => (
+                    <motion.div
+                      key={i}
+                      aria-hidden
+                      className="absolute -translate-x-1/2 -translate-y-1/2"
+                      style={{ left, top, color }}
+                      initial={{ opacity: 0, scale: 0.4 }}
+                      animate={{ opacity: [0, 1, 0.5], scale: [0.4, 1.15, 0.9] }}
+                      transition={{ duration: 0.65, ease: "easeOut", delay }}
+                    >
+                      <Icon size={size} fill={color} strokeWidth={Icon === Check ? 3 : 0} />
+                    </motion.div>
+                  ))}
+
+                  {ORBIT_DOTS.map(({ left, top, size, color, delay }, i) => (
+                    <motion.div
+                      key={i}
+                      aria-hidden
+                      className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+                      style={{ left, top, width: size, height: size, background: color }}
+                      initial={{ opacity: 0, scale: 0.3 }}
+                      animate={{ opacity: [0, 1, 0.4], scale: [0.3, 1.2, 0.8] }}
+                      transition={{ duration: 0.6, ease: "easeOut", delay }}
+                    />
+                  ))}
+                </motion.div>
               )}
-            </motion.div>
+
+              {/* shared-layout target for the header logo */}
+              <motion.div
+                layoutId={reducedMotion ? undefined : "dayli-logo"}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{
+                  layout: { type: "spring", stiffness: 210, damping: 24 },
+                  opacity: { duration: 0.5, ease: "easeOut" },
+                  scale: { type: "spring", stiffness: 190, damping: 18 },
+                }}
+                className="relative h-16 w-[152px]"
+              >
+                <Image src="/brand/logo.png" alt="dayli" fill priority sizes="152px" className="object-contain" />
+              </motion.div>
+            </div>
 
             {/* Loading indicator */}
             {!isReturningVisit && (
@@ -187,16 +221,29 @@ export function SplashScreen() {
             )}
           </div>
 
-          <style jsx>{`
-            @keyframes dl-sweep {
-              from {
-                background-position: 130% 0;
-              }
-              to {
-                background-position: -30% 0;
-              }
-            }
-          `}</style>
+          {/* Phase 4 — signature line, heart pulsing as the closing beat */}
+          <div
+            className="absolute bottom-10 flex items-center gap-1.5 text-[12px]"
+            style={{ color: "var(--dl-text-faint)" }}
+          >
+            <span>made with</span>
+            <motion.span
+              className="inline-flex"
+              style={{ color: "var(--dl-elisabeth)" }}
+              initial={{ scale: 1 }}
+              animate={showBrandBeats ? { scale: [1, 1.35, 1] } : undefined}
+              transition={{
+                duration: 0.9,
+                ease: "easeInOut",
+                delay: 1.5,
+                repeat: Infinity,
+                repeatDelay: 0.5,
+              }}
+            >
+              <Heart size={13} fill="var(--dl-elisabeth)" strokeWidth={0} />
+            </motion.span>
+            <span>by Domenico</span>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
