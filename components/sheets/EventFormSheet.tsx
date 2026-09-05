@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Trash2, Paperclip, X } from "lucide-react";
+import { Trash2, Paperclip, X, Sparkles } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import {
   ChipGroup,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/FormControls";
 import { PrepTaskChecklist } from "@/components/events/PrepTaskChecklist";
 import { useAppStore } from "@/lib/store/app-store";
+import { useSheet } from "@/lib/store/sheet-context";
 import { useSavePulse } from "@/lib/store/save-pulse-context";
 import { CATEGORIES } from "@/lib/demo-data";
 import { assigneeColor, assigneeLabel, categoryLabel } from "@/lib/theme";
@@ -53,6 +54,7 @@ interface Props {
 
 export function EventFormSheet({ open, onClose, defaultDate, presetCategory, editEvent }: Props) {
   const { addEvent, updateEvent, deleteEvent, tasks, showToast } = useAppStore();
+  const { openQuickAdd } = useSheet();
   const { triggerSavePulse } = useSavePulse();
   const isBirthday = presetCategory === "geburtstag";
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -177,6 +179,18 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
       title={editEvent ? "Termin bearbeiten" : isBirthday ? "Geburtstag" : "Termin erstellen"}
     >
       <div className="flex flex-col gap-4">
+        {!editEvent && !isBirthday && (
+          <button
+            type="button"
+            onClick={() => openQuickAdd("natural")}
+            className="flex items-center gap-2 rounded-[14px] border px-3.5 py-2.5 text-left text-[13.5px] font-medium"
+            style={{ borderColor: "var(--dl-together)", background: "var(--dl-together-soft)", color: "var(--dl-together)" }}
+          >
+            <Sparkles size={16} className="shrink-0" />
+            Stattdessen per Text oder Sprache eintragen
+          </button>
+        )}
+
         <div>
           <FieldLabel>Titel</FieldLabel>
           <TextField
@@ -188,22 +202,22 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <FieldLabel>Datum</FieldLabel>
             <TextField type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <div className="flex items-end">
+          <div className="flex min-w-0 items-end">
             <ToggleRow label="Ganztägig" checked={allDay} onChange={setAllDay} />
           </div>
         </div>
 
         {!allDay && (
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="min-w-0">
               <FieldLabel>Beginn</FieldLabel>
               <TextField type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </div>
-            <div>
+            <div className="min-w-0">
               <FieldLabel>Ende</FieldLabel>
               <TextField type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
             </div>
@@ -249,12 +263,12 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
         {editEvent && <PrepTaskChecklist event={editEvent} />}
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <FieldLabel>Erinnerung</FieldLabel>
             <select
               value={reminder}
               onChange={(e) => setReminder(e.target.value)}
-              className="w-full rounded-[14px] border px-3.5 py-2.5 text-[15px] outline-none"
+              className="w-full min-w-0 rounded-[14px] border px-3.5 py-2.5 text-[15px] outline-none"
               style={{ background: "var(--dl-card)", borderColor: "var(--dl-border)", color: "var(--dl-text)" }}
             >
               {REMINDER_OPTIONS.map((o) => (
@@ -264,12 +278,12 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <FieldLabel>Wiederholung</FieldLabel>
             <select
               value={recurrence}
               onChange={(e) => setRecurrence(e.target.value as RecurrenceRule)}
-              className="w-full rounded-[14px] border px-3.5 py-2.5 text-[15px] outline-none"
+              className="w-full min-w-0 rounded-[14px] border px-3.5 py-2.5 text-[15px] outline-none"
               style={{ background: "var(--dl-card)", borderColor: "var(--dl-border)", color: "var(--dl-text)" }}
             >
               {RECURRENCE_OPTIONS.map((o) => (
