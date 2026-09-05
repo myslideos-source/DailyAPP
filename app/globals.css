@@ -36,6 +36,11 @@
   --dl-safe-bottom: env(safe-area-inset-bottom, 0px);
   --dl-safe-left: env(safe-area-inset-left, 0px);
   --dl-safe-right: env(safe-area-inset-right, 0px);
+
+  /* Kept in sync with window.visualViewport by useViewportBottomFix —
+     normally 0px; only non-zero during the brief iOS cold-launch window
+     where the layout viewport hasn't settled yet (see that hook). */
+  --dl-vv-bottom-gap: 0px;
 }
 
 @theme inline {

@@ -18,6 +18,7 @@ import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
 import { SavePulseProvider } from "@/lib/store/save-pulse-context";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSplash } from "@/lib/store/splash-context";
+import { useViewportBottomFix } from "@/lib/hooks/useViewportBottomFix";
 import { toISODate } from "@/lib/date-utils";
 
 function SheetRenderer() {
@@ -72,6 +73,8 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLoginRoute = pathname === "/login";
+
+  useViewportBottomFix();
 
   useEffect(() => {
     if (!ready || !splashDone) return;
