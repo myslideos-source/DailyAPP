@@ -1,6 +1,7 @@
+import { v4 as uuid } from "uuid";
 import { addDays, addMonths, addWeeks, addYears, format, isAfter, isBefore } from "date-fns";
 import { fromISODate } from "./date-utils";
-import type { CalendarEvent } from "./types";
+import type { Assignee, CalendarEvent, RecurrenceRule, TaskItem } from "./types";
 
 // Recurring events are never persisted per-occurrence — every future date
 // is computed on the fly from the single stored event whenever a view
@@ -10,7 +11,7 @@ import type { CalendarEvent } from "./types";
 
 const MAX_OCCURRENCES = 400;
 
-function stepDate(date: Date, rule: CalendarEvent["recurrence"]): Date {
+export function stepRecurrence(date: Date, rule: RecurrenceRule): Date {
   switch (rule) {
     case "daily":
       return addDays(date, 1);
@@ -59,7 +60,7 @@ export function expandEventOccurrences(
         // original event (with its real date string) is reused as-is.
         result.push(cursor === anchor ? event : { ...event, date: format(cursor, "yyyy-MM-dd") });
       }
-      cursor = stepDate(cursor, event.recurrence);
+      cursor = stepRecurrence(cursor, event.recurrence);
       count++;
     }
   }
@@ -74,4 +75,40 @@ export function expandEventsForDay(events: CalendarEvent[], dateISO: string): Ca
 
 export function occurrenceKey(event: CalendarEvent) {
   return `${event.id}-${event.date}`;
+}
+
+// Tasks (unlike events) have no virtual-expansion display — a recurring
+// task instead spawns one real next-occurrence row when the current one is
+// completed, so "erledigt" history stays intact per instance. Swapping
+// stops at "gemeinsam": rotating a shared task between two people who both
+// already own it doesn't mean anything.
+export function swapAssignee(assignee: Assignee): Assignee {
+  if (assignee === "domenico") return "elisabeth";
+  if (assignee === "elisabeth") return "domenico";
+  return assignee;
+}
+
+/** Builds the payload for a recurring task's next occurrence right after
+ * the current one is marked done. Returns null when the task isn't
+ * recurring or has no due date to advance from. */
+export function nextTaskOccurrence(task: TaskItem): Omit<TaskItem, "id" | "createdAt" | "updatedAt"> | null {
+  if (task.recurrence === "none" || !task.dueDate) return null;
+
+  const nextDueDate = format(stepRecurrence(fromISODate(task.dueDate), task.recurrence), "yyyy-MM-dd");
+
+  return {
+    title: task.title,
+    assignee: task.rotateAssignee ? swapAssignee(task.assignee) : task.assignee,
+    dueDate: nextDueDate,
+    priority: task.priority,
+    done: false,
+    doneAt: null,
+    recurrence: task.recurrence,
+    rotateAssignee: task.rotateAssignee ?? false,
+    isShopping: task.isShopping,
+    linkedEventId: null,
+    reminderMinutesBefore: task.reminderMinutesBefore,
+    sortOrder: task.sortOrder,
+    subtasks: task.subtasks.map((s) => ({ ...s, id: uuid(), done: false })),
+  };
 }

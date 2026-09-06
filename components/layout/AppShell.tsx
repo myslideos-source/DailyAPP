@@ -13,6 +13,7 @@ import { EventDetailSheet } from "@/components/sheets/EventDetailSheet";
 import { TaskFormSheet } from "@/components/sheets/TaskFormSheet";
 import { NewEventSheet } from "@/components/sheets/NewEventSheet";
 import { FreeTimeSheet } from "@/components/sheets/FreeTimeSheet";
+import { NoteEditorSheet } from "@/components/sheets/NoteEditorSheet";
 import { ReminderScheduler } from "@/components/pwa/ReminderScheduler";
 import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
 import { SavePulseProvider } from "@/lib/store/save-pulse-context";
@@ -32,6 +33,7 @@ function SheetRenderer() {
 
   const manualDate =
     sheet?.kind === "newEventManual" ? sheet.date ?? toISODate(new Date()) : toISODate(new Date());
+  const noteId = sheet?.kind === "noteEditor" ? sheet.noteId : null;
 
   return (
     <>
@@ -63,6 +65,7 @@ function SheetRenderer() {
       <TaskFormSheet open={sheet?.kind === "reminder"} onClose={close} kind="reminder" />
       <TaskFormSheet open={sheet?.kind === "shopping"} onClose={close} kind="shopping" />
       <FreeTimeSheet open={sheet?.kind === "freeTime"} onClose={close} />
+      <NoteEditorSheet open={sheet?.kind === "noteEditor"} onClose={close} noteId={noteId} />
     </>
   );
 }

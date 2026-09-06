@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { v4 as uuid } from "uuid";
 import { FullscreenPage } from "@/components/ui/FullscreenPage";
-import { ChipGroup, FieldLabel, TextField } from "@/components/ui/FormControls";
+import { ChipGroup, FieldLabel, TextField, ToggleRow } from "@/components/ui/FormControls";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSavePulse } from "@/lib/store/save-pulse-context";
 import { assigneeColor } from "@/lib/theme";
 import { toISODate } from "@/lib/date-utils";
-import type { Assignee, Subtask, TaskPriority } from "@/lib/types";
+import { RECURRENCE_OPTIONS } from "@/lib/event-options";
+import type { Assignee, RecurrenceRule, Subtask, TaskPriority } from "@/lib/types";
 import type { QuickAddKind } from "@/components/sheets/QuickAddMenu";
 
 const ASSIGNEE_OPTIONS: { value: Assignee; label: string }[] = [
@@ -30,6 +31,13 @@ const TITLES: Record<"task" | "reminder" | "shopping", string> = {
   shopping: "Einkauf hinzufügen",
 };
 
+const FIELD_STYLE = {
+  borderRadius: "var(--field-radius)",
+  borderColor: "var(--field-border)",
+  background: "var(--field-background)",
+  color: "var(--dl-text)",
+} as const;
+
 export function TaskFormSheet({
   open,
   onClose,
@@ -45,6 +53,8 @@ export function TaskFormSheet({
   const [dueDate, setDueDate] = useState(toISODate(new Date()));
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assignee, setAssignee] = useState<Assignee>("gemeinsam");
+  const [recurrence, setRecurrence] = useState<RecurrenceRule>("none");
+  const [rotateAssignee, setRotateAssignee] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +68,8 @@ export function TaskFormSheet({
     setDueDate(toISODate(new Date()));
     setPriority(kind === "reminder" ? "high" : "medium");
     setAssignee("gemeinsam");
+    setRecurrence("none");
+    setRotateAssignee(false);
     setSubtasks([]);
     setSubtaskDraft("");
     setError(null);
@@ -81,7 +93,8 @@ export function TaskFormSheet({
       dueDate: kind === "shopping" ? dueDate : dueDate || null,
       priority,
       done: false,
-      recurrence: "none",
+      recurrence: kind === "shopping" ? "none" : recurrence,
+      rotateAssignee: kind !== "shopping" && recurrence !== "none" && assignee !== "gemeinsam" && rotateAssignee,
       isShopping: kind === "shopping",
       subtasks: kind === "task" ? subtasks : [],
     });
@@ -152,6 +165,33 @@ export function TaskFormSheet({
             colorFor={assigneeColor}
           />
         </div>
+
+        {kind !== "shopping" && (
+          <div>
+            <FieldLabel>Wiederholung</FieldLabel>
+            <select
+              value={recurrence}
+              onChange={(e) => setRecurrence(e.target.value as RecurrenceRule)}
+              className="box-border w-full min-w-0 border text-[15px] outline-none"
+              style={{ ...FIELD_STYLE, height: "var(--field-height)", paddingInline: "var(--field-padding-x)" }}
+            >
+              {RECURRENCE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {recurrence !== "none" && assignee !== "gemeinsam" && (
+              <div className="mt-2.5">
+                <ToggleRow
+                  label="Zuständigkeit automatisch wechseln"
+                  checked={rotateAssignee}
+                  onChange={setRotateAssignee}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {kind === "task" && (
           <div>

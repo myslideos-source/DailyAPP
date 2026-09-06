@@ -13,6 +13,45 @@ export type Database = {
   };
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          actor_id: string | null;
+          created_at: string;
+          family_id: string;
+          id: string;
+          message: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          created_at?: string;
+          family_id: string;
+          id?: string;
+          message: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          created_at?: string;
+          family_id?: string;
+          id?: string;
+          message?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "activity_log_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "activity_log_family_id_fkey";
+            columns: ["family_id"];
+            isOneToOne: false;
+            referencedRelation: "families";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       backup_snapshots: {
         Row: {
           created_at: string;
@@ -262,6 +301,61 @@ export type Database = {
           {
             foreignKeyName: "family_members_profile_id_fkey";
             columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      notes: {
+        Row: {
+          body: string;
+          created_at: string;
+          created_by: string | null;
+          family_id: string;
+          id: string;
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          body?: string;
+          created_at?: string;
+          created_by?: string | null;
+          family_id: string;
+          id?: string;
+          title?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          created_by?: string | null;
+          family_id?: string;
+          id?: string;
+          title?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notes_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notes_family_id_fkey";
+            columns: ["family_id"];
+            isOneToOne: false;
+            referencedRelation: "families";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notes_updated_by_fkey";
+            columns: ["updated_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -659,6 +753,7 @@ export type Database = {
           priority: string;
           recurrence_rule: string;
           reminder_minutes_before: number | null;
+          rotate_assignee: boolean;
           sort_order: number;
           title: string;
           updated_at: string;
@@ -678,6 +773,7 @@ export type Database = {
           priority?: string;
           recurrence_rule?: string;
           reminder_minutes_before?: number | null;
+          rotate_assignee?: boolean;
           sort_order?: number;
           title: string;
           updated_at?: string;
@@ -697,6 +793,7 @@ export type Database = {
           priority?: string;
           recurrence_rule?: string;
           reminder_minutes_before?: number | null;
+          rotate_assignee?: boolean;
           sort_order?: number;
           title?: string;
           updated_at?: string;

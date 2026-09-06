@@ -13,14 +13,29 @@ import {
 import { v4 as uuid } from "uuid";
 import { createDemoDataset, CATEGORIES, DEMO_NOTIFICATIONS, PROFILES } from "@/lib/demo-data";
 import { slugifyCategoryKey, validateCategoryName } from "@/lib/category-utils";
+import { nextTaskOccurrence } from "@/lib/recurrence";
+import {
+  categoryCreatedMessage,
+  categoryDeletedMessage,
+  eventCreatedMessage,
+  eventDeletedMessage,
+  noteCreatedMessage,
+  savingsEntryAddedMessage,
+  savingsGoalCreatedMessage,
+  taskCreatedMessage,
+  taskDeletedMessage,
+  taskDoneMessage,
+} from "@/lib/activity-messages";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { SupabaseAuthProvider, useSupabaseAuth } from "@/lib/store/auth-context";
 import * as repo from "@/lib/supabase/repository";
 import type {
+  ActivityEntry,
   AppNotification,
   Assignee,
   CalendarEvent,
   CategoryDef,
+  Note,
   PersonId,
   SavingsEntry,
   SavingsGoal,
@@ -55,6 +70,12 @@ interface AppState {
   savingsGoals: SavingsGoal[];
   savingsEntries: SavingsEntry[];
   notifications: AppNotification[];
+  /** A shared list of independent notes (Apple-Notes-style), not one
+   * scratchpad — see the Note type. */
+  notes: Note[];
+  /** Quick-skim feed of who did what, most recent first — creations,
+   * completions, deletions only, never a field-level diff. */
+  activity: ActivityEntry[];
 }
 
 const EMPTY_STATE: AppState = {
@@ -63,7 +84,13 @@ const EMPTY_STATE: AppState = {
   savingsGoals: [],
   savingsEntries: [],
   notifications: [],
+  notes: [],
+  activity: [],
 };
+
+// Keeps the feed to a quick skim rather than an ever-growing list; older
+// entries simply scroll out rather than being deleted anywhere.
+const MAX_ACTIVITY_ENTRIES = 200;
 
 type Action =
   | { type: "ADD_EVENT"; payload: CalendarEvent }
@@ -72,7 +99,6 @@ type Action =
   | { type: "ADD_TASK"; payload: TaskItem }
   | { type: "UPDATE_TASK"; payload: TaskItem }
   | { type: "DELETE_TASK"; payload: { id: string } }
-  | { type: "TOGGLE_TASK"; payload: { id: string } }
   | { type: "TOGGLE_SUBTASK"; payload: { taskId: string; subtaskId: string } }
   | { type: "SET_SUBTASK_DONE"; payload: { taskId: string; subtaskId: string; done: boolean } }
   | { type: "ADD_SAVINGS_GOAL"; payload: SavingsGoal }
@@ -80,6 +106,9 @@ type Action =
   | { type: "MARK_NOTIFICATION_READ"; payload: { id: string } }
   | { type: "MARK_ALL_NOTIFICATIONS_READ" }
   | { type: "UPSERT_NOTIFICATION"; payload: AppNotification }
+  | { type: "UPSERT_NOTE"; payload: Note }
+  | { type: "DELETE_NOTE"; payload: { id: string } }
+  | { type: "ADD_ACTIVITY"; payload: ActivityEntry }
   | { type: "HYDRATE"; payload: AppState };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -127,20 +156,6 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         tasks: state.tasks.filter((t) => t.id !== action.payload.id),
-      };
-    case "TOGGLE_TASK":
-      return {
-        ...state,
-        tasks: state.tasks.map((t) =>
-          t.id === action.payload.id
-            ? {
-                ...t,
-                done: !t.done,
-                doneAt: !t.done ? new Date().toISOString() : null,
-                updatedAt: new Date().toISOString(),
-              }
-            : t,
-        ),
       };
     case "TOGGLE_SUBTASK":
       return {
@@ -213,6 +228,21 @@ function reducer(state: AppState, action: Action): AppState {
           : [action.payload, ...state.notifications],
       };
     }
+    case "UPSERT_NOTE": {
+      const exists = state.notes.some((n) => n.id === action.payload.id);
+      return {
+        ...state,
+        notes: exists
+          ? state.notes.map((n) => (n.id === action.payload.id ? action.payload : n))
+          : [action.payload, ...state.notes],
+      };
+    }
+    case "DELETE_NOTE":
+      return { ...state, notes: state.notes.filter((n) => n.id !== action.payload.id) };
+    case "ADD_ACTIVITY": {
+      if (state.activity.some((a) => a.id === action.payload.id)) return state;
+      return { ...state, activity: [action.payload, ...state.activity].slice(0, MAX_ACTIVITY_ENTRIES) };
+    }
     default:
       return state;
   }
@@ -220,7 +250,7 @@ function reducer(state: AppState, action: Action): AppState {
 
 function loadInitialState(): AppState {
   const demo = createDemoDataset();
-  return { ...demo, notifications: DEMO_NOTIFICATIONS };
+  return { ...demo, notifications: DEMO_NOTIFICATIONS, notes: [], activity: [] };
 }
 
 interface Toast {
@@ -272,6 +302,14 @@ interface AppStoreValue extends AppState {
    * behavior in Supabase mode; done manually here in demo mode) before
    * removing it. Refuses (throws) for system categories. */
   deleteCategory: (id: string) => Promise<void>;
+  /** Creates an empty untitled note and returns it immediately so the UI
+   * can navigate straight into editing it (Apple-Notes-style). */
+  addNote: () => Promise<Note>;
+  /** Called ~800ms after the user stops typing (debounced by the editor
+   * itself, not here) — "live" for this app means "syncs shortly after a
+   * typing pause", not character-by-character co-editing. */
+  updateNote: (id: string, patch: { title?: string; body?: string }) => void;
+  deleteNote: (id: string) => void;
   /** Demo mode only — replaces all local data with a previously exported
    * backup. Returns false (and leaves data untouched) when unsupported,
    * e.g. in Supabase mode where restoring shared family data from a local
@@ -411,6 +449,10 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
       addEvent: (event) => {
         const created: CalendarEvent = { ...event, id: uuid(), createdAt: now(), updatedAt: now() };
         dispatch({ type: "ADD_EVENT", payload: created });
+        dispatch({
+          type: "ADD_ACTIVITY",
+          payload: { id: uuid(), actorId: activeProfile, message: eventCreatedMessage(created.title), createdAt: now() },
+        });
         return Promise.resolve(created);
       },
       updateEvent: (id, patch) => {
@@ -422,7 +464,12 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
         });
       },
       deleteEvent: (id, deleteLinkedTasks) => {
+        const deletedTitle = state.events.find((e) => e.id === id)?.title ?? "";
         dispatch({ type: "DELETE_EVENT", payload: { id } });
+        dispatch({
+          type: "ADD_ACTIVITY",
+          payload: { id: uuid(), actorId: activeProfile, message: eventDeletedMessage(deletedTitle), createdAt: now() },
+        });
         const linked = state.tasks.filter((t) => t.linkedEventId === id);
         for (const task of linked) {
           if (deleteLinkedTasks) {
@@ -441,6 +488,12 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
           updatedAt: now(),
         };
         dispatch({ type: "ADD_TASK", payload: created });
+        if (!created.isShopping) {
+          dispatch({
+            type: "ADD_ACTIVITY",
+            payload: { id: uuid(), actorId: activeProfile, message: taskCreatedMessage(created.title), createdAt: now() },
+          });
+        }
         return Promise.resolve(created);
       },
       updateTask: (id, patch) => {
@@ -451,20 +504,56 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
           payload: { ...existing, ...patch, updatedAt: now() },
         });
       },
-      deleteTask: (id) => dispatch({ type: "DELETE_TASK", payload: { id } }),
-      toggleTask: (id) => dispatch({ type: "TOGGLE_TASK", payload: { id } }),
+      deleteTask: (id) => {
+        const deleted = state.tasks.find((t) => t.id === id);
+        dispatch({ type: "DELETE_TASK", payload: { id } });
+        if (deleted && !deleted.isShopping) {
+          dispatch({
+            type: "ADD_ACTIVITY",
+            payload: { id: uuid(), actorId: activeProfile, message: taskDeletedMessage(deleted.title), createdAt: now() },
+          });
+        }
+      },
+      toggleTask: (id) => {
+        const existing = state.tasks.find((t) => t.id === id);
+        if (!existing) return;
+        const done = !existing.done;
+        const merged = { ...existing, done, doneAt: done ? now() : null, updatedAt: now() };
+        dispatch({ type: "UPDATE_TASK", payload: merged });
+        if (!done || existing.isShopping) return;
+        dispatch({
+          type: "ADD_ACTIVITY",
+          payload: { id: uuid(), actorId: activeProfile, message: taskDoneMessage(existing.title), createdAt: now() },
+        });
+        const next = nextTaskOccurrence(merged);
+        if (next) {
+          dispatch({ type: "ADD_TASK", payload: { ...next, id: uuid(), createdAt: now(), updatedAt: now() } });
+        }
+      },
       toggleSubtask: (taskId, subtaskId) =>
         dispatch({ type: "TOGGLE_SUBTASK", payload: { taskId, subtaskId } }),
-      addSavingsGoal: (goal) =>
+      addSavingsGoal: (goal) => {
+        const created: SavingsGoal = { ...goal, id: uuid(), createdAt: now() };
+        dispatch({ type: "ADD_SAVINGS_GOAL", payload: created });
         dispatch({
-          type: "ADD_SAVINGS_GOAL",
-          payload: { ...goal, id: uuid(), createdAt: now() },
-        }),
-      addSavingsEntry: (entry) =>
+          type: "ADD_ACTIVITY",
+          payload: { id: uuid(), actorId: activeProfile, message: savingsGoalCreatedMessage(created.title), createdAt: now() },
+        });
+      },
+      addSavingsEntry: (entry) => {
+        const created: SavingsEntry = { ...entry, id: uuid(), createdAt: now() };
+        dispatch({ type: "ADD_SAVINGS_ENTRY", payload: created });
+        const goalTitle = state.savingsGoals.find((g) => g.id === entry.goalId)?.title ?? "";
         dispatch({
-          type: "ADD_SAVINGS_ENTRY",
-          payload: { ...entry, id: uuid(), createdAt: now() },
-        }),
+          type: "ADD_ACTIVITY",
+          payload: {
+            id: uuid(),
+            actorId: activeProfile,
+            message: savingsEntryAddedMessage(created.amount, goalTitle),
+            createdAt: now(),
+          },
+        });
+      },
       markNotificationRead: (id) =>
         setReadsByProfile((prev) => {
           const list = prev[id] ?? [];
@@ -501,6 +590,10 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
           isSystem: false,
         };
         setCategories((prev) => [...prev, created]);
+        dispatch({
+          type: "ADD_ACTIVITY",
+          payload: { id: uuid(), actorId: activeProfile, message: categoryCreatedMessage(created.label), createdAt: now() },
+        });
         return Promise.resolve(created);
       },
       updateCategory: (id, patch) => {
@@ -533,8 +626,30 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
             dispatch({ type: "UPDATE_EVENT", payload: { ...event, category: null, updatedAt: now() } });
           }
         }
+        dispatch({
+          type: "ADD_ACTIVITY",
+          payload: { id: uuid(), actorId: activeProfile, message: categoryDeletedMessage(existing.label), createdAt: now() },
+        });
         return Promise.resolve();
       },
+      addNote: () => {
+        const created: Note = { id: uuid(), title: "", body: "", updatedBy: activeProfile, createdAt: now(), updatedAt: now() };
+        dispatch({ type: "UPSERT_NOTE", payload: created });
+        dispatch({
+          type: "ADD_ACTIVITY",
+          payload: { id: uuid(), actorId: activeProfile, message: noteCreatedMessage(""), createdAt: now() },
+        });
+        return Promise.resolve(created);
+      },
+      updateNote: (id, patch) => {
+        const existing = state.notes.find((n) => n.id === id);
+        if (!existing) return;
+        dispatch({
+          type: "UPSERT_NOTE",
+          payload: { ...existing, ...patch, updatedBy: activeProfile, updatedAt: now() },
+        });
+      },
+      deleteNote: (id) => dispatch({ type: "DELETE_NOTE", payload: { id } }),
       restoreFromBackup: (data) => {
         dispatch({ type: "HYDRATE", payload: data });
         return true;
@@ -565,6 +680,11 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
   const { toasts, showToast } = useToasts();
   const stateRef = useRef(state);
   const categoriesRef = useRef(categories);
+  // The family's two profile rows (uuid <-> personId), needed to resolve
+  // Realtime payloads for notes/activity_log — both store a raw profile
+  // uuid, unlike events/tasks which already store "domenico"/"elisabeth"
+  // directly. Never exposed on AppStoreValue; purely an internal lookup.
+  const profilesRef = useRef<repo.FamilyProfileRef[]>([]);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -588,6 +708,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
       (data) => {
         if (cancelled) return;
         setCategories(data.categories);
+        profilesRef.current = data.profiles;
         dispatch({
           type: "HYDRATE",
           payload: {
@@ -596,6 +717,8 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
             savingsGoals: data.savingsGoals,
             savingsEntries: data.savingsEntries,
             notifications: data.notifications,
+            notes: data.notes,
+            activity: data.activity,
           },
         });
         setDataReady(true);
@@ -762,6 +885,26 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
           }
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notes", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            dispatch({ type: "DELETE_NOTE", payload: { id: (payload.old as { id: string }).id } });
+          } else {
+            const note = repo.rowToNote(payload.new as Record<string, unknown>, profilesRef.current);
+            dispatch({ type: "UPSERT_NOTE", payload: note });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "activity_log", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          const entry = repo.rowToActivity(payload.new as Record<string, unknown>, profilesRef.current);
+          dispatch({ type: "ADD_ACTIVITY", payload: entry });
+        },
+      )
       .subscribe();
 
     return () => {
@@ -814,6 +957,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         const { familyId, profileId } = requireFamily();
         return repo.insertEvent(familyId, categoriesRef.current, profileId, event).then((row) => {
           dispatch({ type: "ADD_EVENT", payload: row });
+          void repo.logActivity(familyId, profileId, eventCreatedMessage(row.title));
           return row;
         });
       },
@@ -826,10 +970,12 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         void repo.updateEventRow(familyId, id, categoriesRef.current, patch, merged);
       },
       deleteEvent: (id, deleteLinkedTasks) => {
+        const deletedTitle = stateRef.current.events.find((e) => e.id === id)?.title ?? "";
         const linked = stateRef.current.tasks.filter((t) => t.linkedEventId === id);
-        const { familyId } = requireFamily();
+        const { familyId, profileId } = requireFamily();
         dispatch({ type: "DELETE_EVENT", payload: { id } });
         void repo.deleteEventRow(id);
+        void repo.logActivity(familyId, profileId, eventDeletedMessage(deletedTitle));
         for (const task of linked) {
           if (deleteLinkedTasks) {
             dispatch({ type: "DELETE_TASK", payload: { id: task.id } });
@@ -850,6 +996,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
           .insertTask(familyId, profileId, { ...task, sortOrder: task.sortOrder ?? 0 }, linkedEvent)
           .then((row) => {
             dispatch({ type: "ADD_TASK", payload: row });
+            if (!row.isShopping) void repo.logActivity(familyId, profileId, taskCreatedMessage(row.title));
             return row;
           });
       },
@@ -865,8 +1012,13 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         void repo.updateTaskRow(familyId, id, patch, merged, profile?.id ?? null, linkedEvent);
       },
       deleteTask: (id) => {
+        const deleted = stateRef.current.tasks.find((t) => t.id === id);
         dispatch({ type: "DELETE_TASK", payload: { id } });
         void repo.deleteTaskRow(id);
+        if (deleted && !deleted.isShopping) {
+          const { familyId, profileId } = requireFamily();
+          void repo.logActivity(familyId, profileId, taskDeletedMessage(deleted.title));
+        }
       },
       toggleTask: (id) => {
         const existing = stateRef.current.tasks.find((t) => t.id === id);
@@ -875,11 +1027,22 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         const doneAt = done ? new Date().toISOString() : null;
         const merged = { ...existing, done, doneAt, updatedAt: new Date().toISOString() };
         dispatch({ type: "UPDATE_TASK", payload: merged });
-        const { familyId } = requireFamily();
+        const { familyId, profileId } = requireFamily();
         const linkedEvent = merged.linkedEventId
           ? (stateRef.current.events.find((e) => e.id === merged.linkedEventId) ?? null)
           : null;
         void repo.updateTaskRow(familyId, id, { done, doneAt }, merged, profile?.id ?? null, linkedEvent);
+        if (done && !existing.isShopping) {
+          void repo.logActivity(familyId, profileId, taskDoneMessage(existing.title));
+        }
+        if (done) {
+          const next = nextTaskOccurrence(merged);
+          if (next) {
+            repo
+              .insertTask(familyId, profileId, next, null)
+              .then((row) => dispatch({ type: "ADD_TASK", payload: row }));
+          }
+        }
       },
       toggleSubtask: (taskId, subtaskId) => {
         const task = stateRef.current.tasks.find((t) => t.id === taskId);
@@ -891,14 +1054,18 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
       },
       addSavingsGoal: (goal) => {
         const { familyId, profileId } = requireFamily();
-        repo.insertSavingsGoal(familyId, profileId, goal).then((row) =>
-          dispatch({ type: "ADD_SAVINGS_GOAL", payload: row }),
-        );
+        repo.insertSavingsGoal(familyId, profileId, goal).then((row) => {
+          dispatch({ type: "ADD_SAVINGS_GOAL", payload: row });
+          void repo.logActivity(familyId, profileId, savingsGoalCreatedMessage(row.title));
+        });
       },
       addSavingsEntry: (entry) => {
-        repo.insertSavingsEntry(profile?.id ?? null, entry).then((row) =>
-          dispatch({ type: "ADD_SAVINGS_ENTRY", payload: row }),
-        );
+        const { familyId, profileId } = requireFamily();
+        const goalTitle = stateRef.current.savingsGoals.find((g) => g.id === entry.goalId)?.title ?? "";
+        repo.insertSavingsEntry(profile?.id ?? null, entry).then((row) => {
+          dispatch({ type: "ADD_SAVINGS_ENTRY", payload: row });
+          void repo.logActivity(familyId, profileId, savingsEntryAddedMessage(row.amount, goalTitle));
+        });
       },
       markNotificationRead: (id) => {
         dispatch({ type: "MARK_NOTIFICATION_READ", payload: { id } });
@@ -929,6 +1096,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
           )
           .then((row) => {
             setCategories((prev) => [...prev, row]);
+            void repo.logActivity(familyId, profileId, categoryCreatedMessage(row.label));
             return row;
           });
       },
@@ -960,7 +1128,29 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         // events.category_id has ON DELETE SET NULL — no manual
         // reassignment needed; the Realtime UPDATE echo for each affected
         // event will land here with category: null once Postgres applies it.
-        return repo.deleteCategoryRow(id);
+        return repo.deleteCategoryRow(id).then(() => {
+          if (familyId) void repo.logActivity(familyId, profile?.id ?? null, categoryDeletedMessage(existing.label));
+        });
+      },
+      addNote: () => {
+        const { familyId, profileId } = requireFamily();
+        return repo.insertNoteRow(familyId, profileId, { title: "", body: "" }, profilesRef.current).then((row) => {
+          dispatch({ type: "UPSERT_NOTE", payload: row });
+          void repo.logActivity(familyId, profileId, noteCreatedMessage(""));
+          return row;
+        });
+      },
+      updateNote: (id, patch) => {
+        const existing = stateRef.current.notes.find((n) => n.id === id);
+        if (!existing) return;
+        const { profileId } = requireFamily();
+        const merged = { ...existing, ...patch, updatedBy: personId, updatedAt: new Date().toISOString() };
+        dispatch({ type: "UPSERT_NOTE", payload: merged });
+        void repo.updateNoteRow(id, profileId, patch);
+      },
+      deleteNote: (id) => {
+        dispatch({ type: "DELETE_NOTE", payload: { id } });
+        void repo.deleteNoteRow(id);
       },
       restoreFromBackup: () => false,
     };
