@@ -13,7 +13,7 @@ import type { CalendarEvent } from "@/lib/types";
  * for the Kalender day-agenda list and the Heute page's upcoming-events
  * lists, so both read as the same app rather than two bespoke layouts. */
 export function EventSummaryRow({ event, index = 0 }: { event: CalendarEvent; index?: number }) {
-  const { openEditEvent } = useSheet();
+  const { openEventDetail } = useSheet();
   const { tasks } = useAppStore();
   const color = assigneeColor(event.assignee);
   const softColor = assigneeSoftColor(event.assignee);
@@ -25,7 +25,7 @@ export function EventSummaryRow({ event, index = 0 }: { event: CalendarEvent; in
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.3, ease: "easeOut" }}
-      onClick={() => openEditEvent(event.id)}
+      onClick={() => openEventDetail(event.id)}
       className="flex w-full items-center gap-3 rounded-[16px] border px-4 py-3.5 text-left"
       style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
     >

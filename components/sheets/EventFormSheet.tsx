@@ -1,48 +1,38 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Trash2, Paperclip, TriangleAlert, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, Trash2, Paperclip, TriangleAlert, X } from "lucide-react";
 import { FullscreenPage } from "@/components/ui/FullscreenPage";
-import {
-  ChipGroup,
-  FieldLabel,
-  TextAreaField,
-  TextField,
-  ToggleRow,
-} from "@/components/ui/FormControls";
+import { CategoryPickerSheet } from "@/components/sheets/CategoryPickerSheet";
+import { FieldLabel, TextAreaField, TextField, ToggleRow } from "@/components/ui/FormControls";
 import { PrepTaskChecklist } from "@/components/events/PrepTaskChecklist";
 import { useAppStore } from "@/lib/store/app-store";
+import { useSheet } from "@/lib/store/sheet-context";
 import { useSavePulse } from "@/lib/store/save-pulse-context";
 import { checkAvailability } from "@/lib/availability";
-import { CATEGORIES } from "@/lib/demo-data";
-import { assigneeColor, assigneeLabel, categoryLabel } from "@/lib/theme";
+import { REMINDER_OPTIONS, RECURRENCE_OPTIONS } from "@/lib/event-options";
+import { assigneeColor, assigneeLabel, CATEGORY_ICONS, categoryLabel } from "@/lib/theme";
 import { formatLongDate } from "@/lib/date-utils";
 import type { Assignee, CalendarEvent, EventCategory, RecurrenceRule } from "@/lib/types";
 import { PersonAvatar } from "@/components/ui/Avatar";
 
 const ASSIGNEE_OPTIONS: { value: Assignee; label: string }[] = [
   { value: "domenico", label: "Domenico" },
-  { value: "elisabeth", label: "Elisabeth" },
   { value: "gemeinsam", label: "Gemeinsam" },
+  { value: "elisabeth", label: "Elisabeth" },
 ];
 
-const RECURRENCE_OPTIONS: { value: RecurrenceRule; label: string }[] = [
-  { value: "none", label: "Keine" },
-  { value: "daily", label: "Täglich" },
-  { value: "weekly", label: "Wöchentlich" },
-  { value: "monthly", label: "Monatlich" },
-  { value: "yearly", label: "Jährlich" },
-];
+const FIELD_STYLE = {
+  borderRadius: "var(--field-radius)",
+  borderColor: "var(--field-border)",
+  background: "var(--field-background)",
+  color: "var(--dl-text)",
+} as const;
 
-const REMINDER_OPTIONS = [
-  { value: "", label: "Keine" },
-  { value: "5", label: "5 Min. vorher" },
-  { value: "15", label: "15 Min. vorher" },
-  { value: "30", label: "30 Min. vorher" },
-  { value: "60", label: "1 Std. vorher" },
-  { value: "1440", label: "1 Tag vorher" },
-  { value: "10080", label: "1 Woche vorher" },
-];
+function CategoryGlyph({ category, color }: { category: EventCategory; color: string }) {
+  const Icon = CATEGORY_ICONS[category];
+  return <Icon size={18} style={{ color }} />;
+}
 
 interface Props {
   open: boolean;
@@ -52,11 +42,28 @@ interface Props {
   editEvent?: CalendarEvent | null;
 }
 
+interface FormSnapshot {
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  allDay: boolean;
+  assignee: Assignee;
+  category: EventCategory;
+  location: string;
+  notes: string;
+  reminder: string;
+  recurrence: RecurrenceRule;
+}
+
 export function EventFormSheet({ open, onClose, defaultDate, presetCategory, editEvent }: Props) {
   const { addEvent, updateEvent, deleteEvent, tasks, events, showToast } = useAppStore();
+  const { openEventDetail } = useSheet();
   const { triggerSavePulse } = useSavePulse();
   const isBirthday = presetCategory === "geburtstag";
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const linkedTaskCount = editEvent ? tasks.filter((t) => t.linkedEventId === editEvent.id).length : 0;
 
   const [title, setTitle] = useState("");
@@ -72,43 +79,79 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
   const [recurrence, setRecurrence] = useState<RecurrenceRule>(isBirthday ? "yearly" : "none");
   const [attachment, setAttachment] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [initialSnapshot, setInitialSnapshot] = useState("");
+
+  function snapshotOf(v: FormSnapshot) {
+    return JSON.stringify(v);
+  }
 
   // Sheet stays mounted between opens (so its close animation can play), so
   // fields are reset here rather than via a remount-on-key approach.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return;
-    if (editEvent) {
-      setTitle(editEvent.title);
-      setDate(editEvent.date);
-      setStartTime(editEvent.startTime ?? "09:00");
-      setEndTime(editEvent.endTime ?? "10:00");
-      setAllDay(editEvent.allDay);
-      setAssignee(editEvent.assignee);
-      setCategory(editEvent.category);
-      setLocation(editEvent.location ?? "");
-      setNotes(editEvent.notes ?? "");
-      setReminder(editEvent.reminderMinutesBefore ? String(editEvent.reminderMinutesBefore) : "");
-      setRecurrence(editEvent.recurrence);
-      setAttachment(null);
-    } else {
-      setTitle("");
-      setDate(defaultDate);
-      setStartTime("09:00");
-      setEndTime("10:00");
-      setAllDay(isBirthday);
-      setAssignee("gemeinsam");
-      setCategory(presetCategory ?? "familie");
-      setLocation("");
-      setNotes("");
-      setReminder(isBirthday ? "10080" : "");
-      setRecurrence(isBirthday ? "yearly" : "none");
-      setAttachment(null);
-    }
+    const next: FormSnapshot = editEvent
+      ? {
+          title: editEvent.title,
+          date: editEvent.date,
+          startTime: editEvent.startTime ?? "09:00",
+          endTime: editEvent.endTime ?? "10:00",
+          allDay: editEvent.allDay,
+          assignee: editEvent.assignee,
+          category: editEvent.category,
+          location: editEvent.location ?? "",
+          notes: editEvent.notes ?? "",
+          reminder: editEvent.reminderMinutesBefore ? String(editEvent.reminderMinutesBefore) : "",
+          recurrence: editEvent.recurrence,
+        }
+      : {
+          title: "",
+          date: defaultDate,
+          startTime: "09:00",
+          endTime: "10:00",
+          allDay: isBirthday,
+          assignee: "gemeinsam",
+          category: presetCategory ?? "familie",
+          location: "",
+          notes: "",
+          reminder: isBirthday ? "10080" : "",
+          recurrence: isBirthday ? "yearly" : "none",
+        };
+    setTitle(next.title);
+    setDate(next.date);
+    setStartTime(next.startTime);
+    setEndTime(next.endTime);
+    setAllDay(next.allDay);
+    setAssignee(next.assignee);
+    setCategory(next.category);
+    setLocation(next.location);
+    setNotes(next.notes);
+    setReminder(next.reminder);
+    setRecurrence(next.recurrence);
+    setAttachment(null);
+    setInitialSnapshot(snapshotOf(next));
     setError(null);
     setConfirmDelete(false);
+    setConfirmDiscard(false);
   }, [open, editEvent, defaultDate, presetCategory, isBirthday]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const isDirty = useMemo(() => {
+    const current = snapshotOf({
+      title,
+      date,
+      startTime,
+      endTime,
+      allDay,
+      assignee,
+      category,
+      location,
+      notes,
+      reminder,
+      recurrence,
+    });
+    return current !== initialSnapshot;
+  }, [title, date, startTime, endTime, allDay, assignee, category, location, notes, reminder, recurrence, initialSnapshot]);
 
   const availability = useMemo(() => {
     if (assignee !== "gemeinsam" || allDay || !startTime) return null;
@@ -122,6 +165,22 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
       return date;
     }
   }, [date]);
+
+  function returnAfterEditing() {
+    if (editEvent) {
+      openEventDetail(editEvent.id);
+    } else {
+      onClose();
+    }
+  }
+
+  function handleCancelClick() {
+    if (isDirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    returnAfterEditing();
+  }
 
   function handleSave() {
     if (!title.trim()) {
@@ -155,7 +214,7 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
       showToast("Termin gespeichert");
     }
     triggerSavePulse();
-    onClose();
+    returnAfterEditing();
   }
 
   function handleDeleteRequest() {
@@ -179,10 +238,10 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
   return (
     <FullscreenPage
       open={open}
-      onClose={onClose}
+      onClose={handleCancelClick}
       title={editEvent ? "Termin bearbeiten" : isBirthday ? "Geburtstag" : "Termin erstellen"}
       leftAction={
-        <button type="button" onClick={onClose} className="text-[15px]" style={{ color: "var(--dl-text-dim)" }}>
+        <button type="button" onClick={handleCancelClick} className="text-[15px]" style={{ color: "var(--dl-text-dim)" }}>
           Abbrechen
         </button>
       }
@@ -198,6 +257,41 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
       }
     >
       <div className="flex flex-col gap-4">
+        {confirmDiscard && (
+          <div
+            className="rounded-[16px] border p-3.5"
+            style={{ borderColor: "var(--dl-border-strong)", background: "var(--dl-card)" }}
+          >
+            <p className="mb-1 text-[14px] font-semibold" style={{ color: "var(--dl-text)" }}>
+              Änderungen verwerfen?
+            </p>
+            <p className="mb-3 text-[13px]" style={{ color: "var(--dl-text-dim)" }}>
+              Deine Änderungen wurden noch nicht gespeichert.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmDiscard(false);
+                  returnAfterEditing();
+                }}
+                className="min-h-[44px] rounded-full text-[13.5px] font-semibold"
+                style={{ background: "var(--dl-danger)", color: "var(--dl-bg)" }}
+              >
+                Änderungen verwerfen
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDiscard(false)}
+                className="min-h-[36px] text-[13px]"
+                style={{ color: "var(--dl-text-dim)" }}
+              >
+                Weiter bearbeiten
+              </button>
+            </div>
+          </div>
+        )}
+
         <div>
           <FieldLabel>Titel</FieldLabel>
           <TextField
@@ -208,18 +302,18 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="date-all-day-grid">
           <div className="min-w-0">
             <FieldLabel>Datum</FieldLabel>
             <TextField type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <div className="flex min-w-0 items-end">
+          <div className="min-w-0">
             <ToggleRow label="Ganztägig" checked={allDay} onChange={setAllDay} />
           </div>
         </div>
 
         {!allDay && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid w-full grid-cols-2 gap-3">
             <div className="min-w-0">
               <FieldLabel>Beginn</FieldLabel>
               <TextField type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
@@ -233,37 +327,73 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
 
         <div>
           <FieldLabel>Zuständig</FieldLabel>
-          <ChipGroup
-            ariaLabel="Zuständig"
-            options={ASSIGNEE_OPTIONS}
-            value={assignee}
-            onChange={setAssignee}
-            colorFor={assigneeColor}
-          />
+          <div className="grid w-full grid-cols-3 gap-2.5">
+            {ASSIGNEE_OPTIONS.map((opt) => {
+              const active = opt.value === assignee;
+              const color = assigneeColor(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setAssignee(opt.value)}
+                  className="box-border flex min-w-0 items-center justify-center border text-[13.5px] font-semibold transition-colors duration-200"
+                  style={
+                    active
+                      ? {
+                          height: "var(--field-height)",
+                          borderRadius: "var(--field-radius)",
+                          background: `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 65%, white))`,
+                          borderColor: color,
+                          color: "var(--dl-text)",
+                        }
+                      : {
+                          height: "var(--field-height)",
+                          borderRadius: "var(--field-radius)",
+                          borderColor: "var(--field-border)",
+                          background: "var(--field-background)",
+                          color: "var(--dl-text-dim)",
+                        }
+                  }
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
           {availability && (
             <div
-              className="mt-2.5 flex items-start gap-2 rounded-[14px] border px-3.5 py-2.5"
-              style={
-                availability.status === "clear"
-                  ? { borderColor: "var(--dl-border)", color: "var(--dl-text-dim)" }
-                  : { borderColor: "var(--dl-danger)", color: "var(--dl-danger)" }
-              }
+              className="mt-2.5 flex items-center gap-2 px-1 text-[13px]"
+              style={{ color: availability.status === "clear" ? "var(--dl-text-dim)" : "var(--dl-danger)" }}
             >
-              {availability.status === "conflict" && <TriangleAlert size={15} className="mt-0.5 shrink-0" />}
-              <p className="text-[12.5px]">
+              {availability.status === "conflict" ? (
+                <TriangleAlert size={14} className="shrink-0" />
+              ) : (
+                <CheckCircle2 size={14} className="shrink-0" style={{ color: "var(--dl-success)" }} />
+              )}
+              <span>
                 {availability.status === "clear"
                   ? "Ihr habt beide Zeit."
                   : `Überschneidet sich mit „${availability.conflicts[0].title}“.`}
-              </p>
+              </span>
             </div>
           )}
         </div>
 
         <div>
           <FieldLabel>Kategorie</FieldLabel>
-          <ChipGroup
-            ariaLabel="Kategorie"
-            options={CATEGORIES.map((c) => ({ value: c.id, label: c.label }))}
+          <button
+            type="button"
+            onClick={() => setCategoryPickerOpen(true)}
+            className="box-border flex w-full min-w-0 items-center gap-3 border text-left"
+            style={{ ...FIELD_STYLE, height: "var(--field-height)", paddingInline: "var(--field-padding-x)" }}
+          >
+            <CategoryGlyph category={category} color="var(--dl-text-dim)" />
+            <span className="min-w-0 flex-1 truncate text-[15px]">{categoryLabel(category)}</span>
+            <ChevronDown size={18} style={{ color: "var(--dl-together)", opacity: 0.75 }} />
+          </button>
+          <CategoryPickerSheet
+            open={categoryPickerOpen}
+            onClose={() => setCategoryPickerOpen(false)}
             value={category}
             onChange={setCategory}
           />
@@ -286,14 +416,14 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
 
         {editEvent && <PrepTaskChecklist event={editEvent} />}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid w-full grid-cols-2 gap-3">
           <div className="min-w-0">
             <FieldLabel>Erinnerung</FieldLabel>
             <select
               value={reminder}
               onChange={(e) => setReminder(e.target.value)}
-              className="w-full min-w-0 rounded-[14px] border px-3.5 py-2.5 text-[15px] outline-none"
-              style={{ background: "var(--dl-card)", borderColor: "var(--dl-border)", color: "var(--dl-text)" }}
+              className="box-border w-full min-w-0 border text-[15px] outline-none"
+              style={{ ...FIELD_STYLE, height: "var(--field-height)", paddingInline: "var(--field-padding-x)" }}
             >
               {REMINDER_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -307,8 +437,8 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
             <select
               value={recurrence}
               onChange={(e) => setRecurrence(e.target.value as RecurrenceRule)}
-              className="w-full min-w-0 rounded-[14px] border px-3.5 py-2.5 text-[15px] outline-none"
-              style={{ background: "var(--dl-card)", borderColor: "var(--dl-border)", color: "var(--dl-text)" }}
+              className="box-border w-full min-w-0 border text-[15px] outline-none"
+              style={{ ...FIELD_STYLE, height: "var(--field-height)", paddingInline: "var(--field-padding-x)" }}
             >
               {RECURRENCE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -323,20 +453,25 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
           <FieldLabel>Anhang</FieldLabel>
           {attachment ? (
             <div
-              className="flex items-center justify-between rounded-[14px] border px-3.5 py-2.5"
-              style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
+              className="box-border flex w-full min-w-0 items-center justify-between border"
+              style={{ ...FIELD_STYLE, height: "var(--field-height)", paddingInline: "var(--field-padding-x)" }}
             >
-              <span className="flex items-center gap-2 truncate text-[13.5px]" style={{ color: "var(--dl-text)" }}>
-                <Paperclip size={15} /> {attachment}
+              <span className="flex min-w-0 items-center gap-2 truncate text-[13.5px]">
+                <Paperclip size={15} className="shrink-0" /> {attachment}
               </span>
-              <button type="button" onClick={() => setAttachment(null)} aria-label="Anhang entfernen">
+              <button type="button" onClick={() => setAttachment(null)} aria-label="Anhang entfernen" className="shrink-0">
                 <X size={16} style={{ color: "var(--dl-text-dim)" }} />
               </button>
             </div>
           ) : (
             <label
-              className="flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-[14px] border border-dashed px-3.5 py-2.5 text-[13.5px] font-medium"
-              style={{ borderColor: "var(--dl-border-strong)", color: "var(--dl-text-dim)" }}
+              className="box-border flex w-full min-w-0 cursor-pointer items-center justify-center gap-2 border border-dashed text-[13.5px] font-medium"
+              style={{
+                height: "var(--field-height)",
+                borderRadius: "var(--field-radius)",
+                borderColor: "var(--field-border)",
+                color: "var(--dl-text-dim)",
+              }}
             >
               <Paperclip size={15} /> Datei hinzufügen
               <input

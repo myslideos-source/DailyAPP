@@ -12,19 +12,24 @@ export function FieldLabel({ children }: { children: React.ReactNode }) {
 
 export function TextField({
   className,
+  style,
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       className={cn(
-        "w-full rounded-[14px] border px-3.5 py-2.5 text-[15px] outline-none transition-colors",
+        "box-border w-full min-w-0 max-w-full border text-[15px] outline-none transition-colors",
         "placeholder:text-[var(--dl-text-faint)] focus:border-[var(--dl-together)]",
         className,
       )}
       style={{
-        background: "var(--dl-card)",
-        borderColor: "var(--dl-border)",
+        height: "var(--field-height)",
+        borderRadius: "var(--field-radius)",
+        paddingInline: "var(--field-padding-x)",
+        background: "var(--field-background)",
+        borderColor: "var(--field-border)",
         color: "var(--dl-text)",
+        ...style,
       }}
       {...props}
     />
@@ -33,19 +38,24 @@ export function TextField({
 
 export function TextAreaField({
   className,
+  style,
   ...props
 }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       className={cn(
-        "w-full resize-none rounded-[14px] border px-3.5 py-2.5 text-[15px] outline-none transition-colors",
+        "box-border w-full min-w-0 max-w-full resize-none border text-[15px] outline-none transition-colors",
         "placeholder:text-[var(--dl-text-faint)] focus:border-[var(--dl-together)]",
         className,
       )}
       style={{
-        background: "var(--dl-card)",
-        borderColor: "var(--dl-border)",
+        borderRadius: "var(--field-radius)",
+        paddingInline: "var(--field-padding-x)",
+        paddingBlock: 14,
+        background: "var(--field-background)",
+        borderColor: "var(--field-border)",
         color: "var(--dl-text)",
+        ...style,
       }}
       {...props}
     />
@@ -119,8 +129,14 @@ export function ToggleRow({
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="flex w-full min-h-[44px] items-center justify-between rounded-[14px] border px-3.5 py-2.5 disabled:opacity-50"
-      style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
+      className="box-border flex w-full min-w-0 max-w-full items-center justify-between border disabled:opacity-50"
+      style={{
+        height: "var(--field-height)",
+        borderRadius: "var(--field-radius)",
+        paddingInline: "var(--field-padding-x)",
+        borderColor: "var(--field-border)",
+        background: "var(--field-background)",
+      }}
     >
       <span className="text-[14.5px]" style={{ color: "var(--dl-text)" }}>
         {label}

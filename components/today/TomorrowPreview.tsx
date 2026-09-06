@@ -7,7 +7,7 @@ import { useSheet } from "@/lib/store/sheet-context";
 import type { CalendarEvent } from "@/lib/types";
 
 export function TomorrowPreview({ event }: { event: CalendarEvent | null }) {
-  const { openEditEvent } = useSheet();
+  const { openEventDetail } = useSheet();
 
   if (!event) return null;
 
@@ -18,7 +18,7 @@ export function TomorrowPreview({ event }: { event: CalendarEvent | null }) {
       initial="hidden"
       animate="visible"
       variants={revealVariants}
-      onClick={() => openEditEvent(event.id)}
+      onClick={() => openEventDetail(event.id)}
       className="mt-4 flex w-full min-h-[64px] items-center gap-3 rounded-[var(--radius-lg)] border px-4 py-3 text-left transition-colors active:bg-white/[0.03]"
       style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
     >

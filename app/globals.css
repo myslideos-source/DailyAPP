@@ -41,6 +41,16 @@
      normally 0px; only non-zero during the brief iOS cold-launch window
      where the layout viewport hasn't settled yet (see that hook). */
   --dl-vv-bottom-gap: 0px;
+
+  /* Unified single-line field system — every editable field (text inputs,
+     date/time pickers, the category/reminder/recurrence selects, the
+     Ganztägig toggle) shares these so nothing has a different height,
+     radius, or horizontal start point. */
+  --field-height: 58px;
+  --field-radius: 17px;
+  --field-padding-x: 16px;
+  --field-border: rgba(111, 132, 194, 0.28);
+  --field-background: rgba(15, 23, 59, 0.6);
 }
 
 @theme inline {
@@ -129,6 +139,23 @@ body {
    button is always reachable above it. */
 .pb-dock {
   padding-bottom: calc(112px + var(--dl-safe-bottom));
+}
+
+/* Event form: Datum + Ganztägig share one row, bottom-aligned so the
+   toggle (no label above it) still lines up with the labeled date field.
+   Wraps to one column on very narrow phones instead of squeezing either
+   field below a usable width. */
+.date-all-day-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(145px, 0.8fr);
+  gap: 12px;
+  width: 100%;
+  align-items: end;
+}
+@media (max-width: 370px) {
+  .date-all-day-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 ::selection {

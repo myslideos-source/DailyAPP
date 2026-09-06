@@ -8,7 +8,8 @@ export type ActiveSheet =
   | { kind: "quickCreate" }
   | { kind: "newEvent"; date?: string }
   | { kind: "newEventManual"; date?: string }
-  | { kind: "event"; editEventId: string }
+  | { kind: "eventDetail"; eventId: string }
+  | { kind: "eventEdit"; editEventId: string }
   | { kind: "task" }
   | { kind: "reminder" }
   | { kind: "shopping" }
@@ -30,10 +31,14 @@ interface SheetContextValue {
   /** Escape hatch to the full manual form (category, recurrence, notes,
    * attachment) — for cases the quick natural-language flow doesn't cover. */
   openManualNewEvent: (date?: string) => void;
-  /** Always resolves the *base* event by id (never a recurrence-expanded
-   * occurrence), so editing a future instance can never silently shift the
-   * whole series' anchor date — see EventFormSheet. */
-  openEditEvent: (eventId: string) => void;
+  /** Opens the read-only event detail view — the default result of tapping
+   * an event anywhere in the app. Always resolves the *base* event by id
+   * (never a recurrence-expanded occurrence), so a future instance can
+   * never silently shift the whole series' anchor date. */
+  openEventDetail: (eventId: string) => void;
+  /** Opens the edit form directly — reached only from the detail view's
+   * pencil icon (or the manual-create escape hatch, which passes no id). */
+  openEventEdit: (eventId: string) => void;
   openQuickAdd: (kind: QuickAddKind) => void;
   openFreeTime: () => void;
   openNotifications: () => void;
@@ -52,7 +57,8 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
       openQuickCreateMenu: () => setSheet({ kind: "quickCreate" }),
       openNewEvent: (date) => setSheet({ kind: "newEvent", date }),
       openManualNewEvent: (date) => setSheet({ kind: "newEventManual", date }),
-      openEditEvent: (eventId) => setSheet({ kind: "event", editEventId: eventId }),
+      openEventDetail: (eventId) => setSheet({ kind: "eventDetail", eventId }),
+      openEventEdit: (eventId) => setSheet({ kind: "eventEdit", editEventId: eventId }),
       openQuickAdd: (kind) => setSheet({ kind }),
       openFreeTime: () => setSheet({ kind: "freeTime" }),
       openNotifications: () => setSheet({ kind: "notifications" }),

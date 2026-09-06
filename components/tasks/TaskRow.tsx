@@ -12,7 +12,7 @@ import type { TaskItem } from "@/lib/types";
 
 export function TaskRow({ task }: { task: TaskItem }) {
   const { toggleTask, toggleSubtask, showToast, events } = useAppStore();
-  const { openEditEvent } = useSheet();
+  const { openEventDetail } = useSheet();
   const doneSub = task.subtasks.filter((s) => s.done).length;
   const linkedEvent = task.linkedEventId ? events.find((e) => e.id === task.linkedEventId) : null;
   const color = assigneeColor(task.assignee);
@@ -63,7 +63,7 @@ export function TaskRow({ task }: { task: TaskItem }) {
           {linkedEvent && (
             <button
               type="button"
-              onClick={() => openEditEvent(linkedEvent.id)}
+              onClick={() => openEventDetail(linkedEvent.id)}
               className="mt-1.5 inline-flex max-w-full items-center truncate rounded-full px-2.5 py-1 text-[12px] font-medium"
               style={{ background: "var(--dl-together-soft)", color: "var(--dl-together)" }}
             >
