@@ -9,6 +9,7 @@ import { SplashScreen } from "@/components/splash/SplashScreen";
 import { ToastStack } from "@/components/ui/Toast";
 import { QuickAddMenu } from "@/components/sheets/QuickAddMenu";
 import { EventFormSheet } from "@/components/sheets/EventFormSheet";
+import { EventDetailSheet } from "@/components/sheets/EventDetailSheet";
 import { TaskFormSheet } from "@/components/sheets/TaskFormSheet";
 import { NewEventSheet } from "@/components/sheets/NewEventSheet";
 import { FreeTimeSheet } from "@/components/sheets/FreeTimeSheet";
@@ -27,7 +28,8 @@ function SheetRenderer() {
 
   // Always the true base record (never a recurrence-expanded occurrence),
   // so editing a future instance can't silently move the whole series.
-  const editEvent = sheet?.kind === "event" ? (events.find((e) => e.id === sheet.editEventId) ?? null) : null;
+  const editEvent = sheet?.kind === "eventEdit" ? (events.find((e) => e.id === sheet.editEventId) ?? null) : null;
+  const detailEventId = sheet?.kind === "eventDetail" ? sheet.eventId : null;
 
   const manualDate =
     sheet?.kind === "newEventManual" ? sheet.date ?? toISODate(new Date()) : toISODate(new Date());
@@ -45,8 +47,9 @@ function SheetRenderer() {
         onClose={close}
         defaultDate={sheet?.kind === "newEvent" ? sheet.date ?? toISODate(new Date()) : toISODate(new Date())}
       />
+      <EventDetailSheet open={sheet?.kind === "eventDetail"} onClose={close} eventId={detailEventId} />
       <EventFormSheet
-        open={sheet?.kind === "event" || sheet?.kind === "newEventManual"}
+        open={sheet?.kind === "eventEdit" || sheet?.kind === "newEventManual"}
         onClose={close}
         defaultDate={manualDate}
         editEvent={editEvent}

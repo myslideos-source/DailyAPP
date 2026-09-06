@@ -18,6 +18,12 @@ export function formatLongDate(date: Date) {
   return format(date, "EEEE, d. MMMM", { locale: de });
 }
 
+/** Same as formatLongDate plus the year — for contexts like the event
+ * detail view where the date needs to stand fully on its own. */
+export function formatFullDate(date: Date) {
+  return format(date, "EEEE, d. MMMM yyyy", { locale: de });
+}
+
 export function formatShortDate(date: Date) {
   return format(date, "d. MMM", { locale: de });
 }

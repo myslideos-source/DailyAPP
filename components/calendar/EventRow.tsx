@@ -11,7 +11,7 @@ import { TOGETHER_MERGE_KEYFRAMES, TOGETHER_MERGE_TRANSITION } from "@/lib/motio
 import type { CalendarEvent } from "@/lib/types";
 
 export function EventRow({ event, index = 0 }: { event: CalendarEvent; index?: number }) {
-  const { openEditEvent } = useSheet();
+  const { openEventDetail } = useSheet();
   const { tasks } = useAppStore();
   const reducedMotion = useReducedMotion();
   const color = assigneeColor(event.assignee);
@@ -24,7 +24,7 @@ export function EventRow({ event, index = 0 }: { event: CalendarEvent; index?: n
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.3, ease: "easeOut" }}
-      onClick={() => openEditEvent(event.id)}
+      onClick={() => openEventDetail(event.id)}
       className="flex w-full min-h-[52px] items-center gap-3 rounded-[14px] border px-3.5 py-2.5 text-left"
       style={{ borderColor: "var(--dl-border)", background: "var(--dl-card)" }}
     >
