@@ -33,14 +33,17 @@ function matchesRoute(pathname: string, href: string) {
 }
 
 /**
- * Dayli Dock — the floating mobile navigation capsule. Only rendered on the
- * three main screens (Heute/Kalender/Aufgaben); returns null everywhere
- * else so it's automatically absent on detail pages, matching the spec's
- * "darf auf Detailseiten ausgeblendet werden".
+ * Dayli Dock — the floating mobile navigation capsule. Renders on every
+ * route (including /mehr and its subpages) so "Heute" is always one tap
+ * away from anywhere in the app — it must never disappear or be blocked by
+ * a local route (see the App-Shell navigation requirements). `active` is a
+ * pure styling flag (true only on the 3 known tabs' own routes, so the app
+ * never implies you're on a page you're not); the left slot next to the orb
+ * defaults to "heute" for visual balance whenever nothing is truly active.
  *
  * All three destinations stay mounted as stable flex siblings at all
- * times — switching the active one only changes size/style and CSS
- * `order`, never which component instance holds which slot — so the
+ * times — switching the active/left-slot one only changes size/style and
+ * CSS `order`, never which component instance holds which slot — so the
  * transition between "wide active capsule" and "compact icon" is a single
  * continuous `layout` FLIP instead of an unmount/remount across two
  * separate render slots (which briefly produced a blank, mispositioned
@@ -52,7 +55,7 @@ export function DayliDock() {
   const quickCreateOpen = sheet?.kind === "quickCreate";
 
   const activeId = ITEMS.find((item) => matchesRoute(pathname, item.href))?.id ?? null;
-  if (!activeId) return null;
+  const leftSlotId = activeId ?? "heute";
 
   return (
     <>
@@ -79,7 +82,7 @@ export function DayliDock() {
               label={item.label}
               icon={item.icon}
               active={item.id === activeId}
-              order={item.id === activeId ? 1 : 3 + index}
+              order={item.id === leftSlotId ? 1 : 3 + index}
             />
           ))}
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronDown, Trash2, Paperclip, TriangleAlert, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { FullscreenPage } from "@/components/ui/FullscreenPage";
 import { CategoryPickerSheet } from "@/components/sheets/CategoryPickerSheet";
 import { FieldLabel, TextAreaField, TextField, ToggleRow } from "@/components/ui/FormControls";
@@ -11,7 +12,7 @@ import { useSheet } from "@/lib/store/sheet-context";
 import { useSavePulse } from "@/lib/store/save-pulse-context";
 import { checkAvailability } from "@/lib/availability";
 import { REMINDER_OPTIONS, RECURRENCE_OPTIONS } from "@/lib/event-options";
-import { assigneeColor, assigneeLabel, CATEGORY_ICONS, categoryLabel } from "@/lib/theme";
+import { assigneeColor, assigneeLabel, iconByName } from "@/lib/theme";
 import { formatLongDate } from "@/lib/date-utils";
 import type { Assignee, CalendarEvent, EventCategory, RecurrenceRule } from "@/lib/types";
 import { PersonAvatar } from "@/components/ui/Avatar";
@@ -29,8 +30,7 @@ const FIELD_STYLE = {
   color: "var(--dl-text)",
 } as const;
 
-function CategoryGlyph({ category, color }: { category: EventCategory; color: string }) {
-  const Icon = CATEGORY_ICONS[category];
+function CategoryGlyph({ icon: Icon, color }: { icon: LucideIcon; color: string }) {
   return <Icon size={18} style={{ color }} />;
 }
 
@@ -49,7 +49,7 @@ interface FormSnapshot {
   endTime: string;
   allDay: boolean;
   assignee: Assignee;
-  category: EventCategory;
+  category: EventCategory | null;
   location: string;
   notes: string;
   reminder: string;
@@ -57,7 +57,7 @@ interface FormSnapshot {
 }
 
 export function EventFormSheet({ open, onClose, defaultDate, presetCategory, editEvent }: Props) {
-  const { addEvent, updateEvent, deleteEvent, tasks, events, showToast } = useAppStore();
+  const { addEvent, updateEvent, deleteEvent, tasks, events, categories, showToast } = useAppStore();
   const { openEventDetail } = useSheet();
   const { triggerSavePulse } = useSavePulse();
   const isBirthday = presetCategory === "geburtstag";
@@ -72,7 +72,7 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
   const [endTime, setEndTime] = useState("10:00");
   const [allDay, setAllDay] = useState(isBirthday);
   const [assignee, setAssignee] = useState<Assignee>("gemeinsam");
-  const [category, setCategory] = useState<EventCategory>(presetCategory ?? "familie");
+  const [category, setCategory] = useState<EventCategory | null>(presetCategory ?? "familie");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [reminder, setReminder] = useState("");
@@ -157,6 +157,11 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
     if (assignee !== "gemeinsam" || allDay || !startTime) return null;
     return checkAvailability(events, date, startTime, endTime, editEvent?.id);
   }, [assignee, allDay, startTime, endTime, date, events, editEvent]);
+
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.key === category) ?? null,
+    [categories, category],
+  );
 
   const summaryDate = useMemo(() => {
     try {
@@ -387,8 +392,10 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
             className="box-border flex w-full min-w-0 items-center gap-3 border text-left"
             style={{ ...FIELD_STYLE, height: "var(--field-height)", paddingInline: "var(--field-padding-x)" }}
           >
-            <CategoryGlyph category={category} color="var(--dl-text-dim)" />
-            <span className="min-w-0 flex-1 truncate text-[15px]">{categoryLabel(category)}</span>
+            <CategoryGlyph icon={iconByName(selectedCategory?.icon)} color="var(--dl-text-dim)" />
+            <span className="min-w-0 flex-1 truncate text-[15px]">
+              {selectedCategory?.label ?? "Keine Kategorie"}
+            </span>
             <ChevronDown size={18} style={{ color: "var(--dl-together)", opacity: 0.75 }} />
           </button>
           <CategoryPickerSheet
@@ -503,7 +510,7 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
                 {summaryDate}
                 {!allDay && ` · ${startTime}–${endTime}`}
                 {" · "}
-                {categoryLabel(category)} · {assigneeLabel(assignee)}
+                {selectedCategory?.label ?? "Keine Kategorie"} · {assigneeLabel(assignee)}
               </p>
             </div>
             <PersonAvatar assignee={assignee} size="sm" />

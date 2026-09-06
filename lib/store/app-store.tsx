@@ -11,15 +11,16 @@ import {
   useState,
 } from "react";
 import { v4 as uuid } from "uuid";
-import { createDemoDataset, DEMO_NOTIFICATIONS, PROFILES } from "@/lib/demo-data";
+import { createDemoDataset, CATEGORIES, DEMO_NOTIFICATIONS, PROFILES } from "@/lib/demo-data";
+import { slugifyCategoryKey, validateCategoryName } from "@/lib/category-utils";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { SupabaseAuthProvider, useSupabaseAuth } from "@/lib/store/auth-context";
 import * as repo from "@/lib/supabase/repository";
-import type { CategoryRef } from "@/lib/supabase/repository";
 import type {
   AppNotification,
   Assignee,
   CalendarEvent,
+  CategoryDef,
   PersonId,
   SavingsEntry,
   SavingsGoal,
@@ -30,6 +31,23 @@ import type {
 
 const STORAGE_KEY = "dayli:data:v1";
 const PREFS_KEY = "dayli:prefs:v1";
+const NOTIF_READS_KEY = "dayli:notif-reads:v1";
+const CATEGORIES_KEY = "dayli:categories:v1";
+
+const SYSTEM_CATEGORIES: CategoryDef[] = CATEGORIES.map((c) => ({
+  id: c.id,
+  key: c.id,
+  label: c.label,
+  icon: c.icon,
+  color: null,
+  isSystem: true,
+}));
+
+export interface CategoryInput {
+  label: string;
+  icon: string;
+  color: string;
+}
 
 interface AppState {
   events: CalendarEvent[];
@@ -60,6 +78,7 @@ type Action =
   | { type: "ADD_SAVINGS_GOAL"; payload: SavingsGoal }
   | { type: "ADD_SAVINGS_ENTRY"; payload: SavingsEntry }
   | { type: "MARK_NOTIFICATION_READ"; payload: { id: string } }
+  | { type: "MARK_ALL_NOTIFICATIONS_READ" }
   | { type: "UPSERT_NOTIFICATION"; payload: AppNotification }
   | { type: "HYDRATE"; payload: AppState };
 
@@ -171,13 +190,20 @@ function reducer(state: AppState, action: Action): AppState {
         savingsEntries: exists ? state.savingsEntries : [...state.savingsEntries, action.payload],
       };
     }
+    // Only ever dispatched in Supabase mode, where `notifications` holds
+    // exclusively unread-for-me rows (see get_unread_notifications()) — so
+    // "read" means "no longer belongs in this array", not a flag flip. Demo
+    // mode tracks per-profile read state separately (see readsByProfile in
+    // DemoAppStoreProvider) and never dispatches these two actions, since it
+    // must keep every notification physically in state regardless of who
+    // has read it.
     case "MARK_NOTIFICATION_READ":
       return {
         ...state,
-        notifications: state.notifications.map((n) =>
-          n.id === action.payload.id ? { ...n, read: true } : n,
-        ),
+        notifications: state.notifications.filter((n) => n.id !== action.payload.id),
       };
+    case "MARK_ALL_NOTIFICATIONS_READ":
+      return { ...state, notifications: [] };
     case "UPSERT_NOTIFICATION": {
       const exists = state.notifications.some((n) => n.id === action.payload.id);
       return {
@@ -223,11 +249,29 @@ interface AppStoreValue extends AppState {
   toggleSubtask: (taskId: string, subtaskId: string) => void;
   addSavingsGoal: (goal: Omit<SavingsGoal, "id" | "createdAt">) => void;
   addSavingsEntry: (entry: Omit<SavingsEntry, "id" | "createdAt">) => void;
+  /** Marks read for the CURRENTLY ACTIVE profile only — never affects the
+   * partner's own unread state for the same (shared) notification. */
   markNotificationRead: (id: string) => void;
+  /** "Alle gelesen" — marks every currently-unread (for me) notification
+   * read in one action, again scoped to the active profile only. */
+  markAllNotificationsRead: () => void;
   /** Appends a device-local notification (e.g. a fired reminder) straight
    * into the bell list without a round-trip — never synced to other
    * devices, since it's derived from this device's own reminder check. */
   addLocalNotification: (notification: { title: string; body: string }) => void;
+  /** System categories (Familie, Hausbau, …) plus any custom ones, in
+   * display order. The single source of truth for category lookups —
+   * event forms/pickers should read from here rather than the static
+   * CATEGORIES constant, so a newly created category appears immediately. */
+  categories: CategoryDef[];
+  /** Throws with a user-facing German message on invalid/duplicate names —
+   * callers should catch and surface `error.message` directly. */
+  addCategory: (input: CategoryInput) => Promise<CategoryDef>;
+  updateCategory: (id: string, patch: Partial<CategoryInput>) => Promise<void>;
+  /** Reassigns any events using this category to "no category" (native FK
+   * behavior in Supabase mode; done manually here in demo mode) before
+   * removing it. Refuses (throws) for system categories. */
+  deleteCategory: (id: string) => Promise<void>;
   /** Demo mode only — replaces all local data with a previously exported
    * backup. Returns false (and leaves data untouched) when unsupported,
    * e.g. in Supabase mode where restoring shared family data from a local
@@ -269,6 +313,13 @@ function useToasts() {
 function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadInitialState);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFS);
+  // Per-profile read receipts, keyed by notification id — the demo-mode
+  // equivalent of the Supabase notification_reads table. Notifications
+  // themselves (state.notifications) are never deleted; only which
+  // profiles have read which id changes here, so Domenico reading one
+  // never marks it read for Elisabeth.
+  const [readsByProfile, setReadsByProfile] = useState<Record<string, PersonId[]>>({});
+  const [categories, setCategories] = useState<CategoryDef[]>(SYSTEM_CATEGORIES);
   const [ready, setReady] = useState(false);
   const { toasts, showToast } = useToasts();
 
@@ -282,6 +333,15 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
       const rawPrefs = window.localStorage.getItem(PREFS_KEY);
       if (rawPrefs) {
         setPreferences({ ...DEFAULT_PREFS, ...JSON.parse(rawPrefs) });
+      }
+      const rawReads = window.localStorage.getItem(NOTIF_READS_KEY);
+      if (rawReads) {
+        setReadsByProfile(JSON.parse(rawReads));
+      }
+      const rawCategories = window.localStorage.getItem(CATEGORIES_KEY);
+      if (rawCategories) {
+        const custom = JSON.parse(rawCategories) as CategoryDef[];
+        setCategories([...SYSTEM_CATEGORIES, ...custom]);
       }
     } catch {
       // Corrupt or blocked storage: fall back silently to the seeded demo state.
@@ -308,10 +368,36 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [ready, preferences]);
 
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      window.localStorage.setItem(NOTIF_READS_KEY, JSON.stringify(readsByProfile));
+    } catch {
+      // ignore
+    }
+  }, [ready, readsByProfile]);
+
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      window.localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories.filter((c) => !c.isSystem)));
+    } catch {
+      // ignore
+    }
+  }, [ready, categories]);
+
+  const activeProfile = preferences.activeProfile;
+  const unreadNotifications = useMemo(
+    () => state.notifications.filter((n) => !(readsByProfile[n.id] ?? []).includes(activeProfile)),
+    [state.notifications, readsByProfile, activeProfile],
+  );
+
   const value = useMemo<AppStoreValue>(() => {
     const now = () => new Date().toISOString();
     return {
       ...state,
+      notifications: unreadNotifications,
+      categories,
       ready,
       preferences,
       toasts,
@@ -380,18 +466,81 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
           payload: { ...entry, id: uuid(), createdAt: now() },
         }),
       markNotificationRead: (id) =>
-        dispatch({ type: "MARK_NOTIFICATION_READ", payload: { id } }),
+        setReadsByProfile((prev) => {
+          const list = prev[id] ?? [];
+          if (list.includes(activeProfile)) return prev;
+          return { ...prev, [id]: [...list, activeProfile] };
+        }),
+      markAllNotificationsRead: () =>
+        setReadsByProfile((prev) => {
+          const next = { ...prev };
+          for (const n of unreadNotifications) {
+            const list = next[n.id] ?? [];
+            if (!list.includes(activeProfile)) next[n.id] = [...list, activeProfile];
+          }
+          return next;
+        }),
       addLocalNotification: (notification) =>
         dispatch({
           type: "UPSERT_NOTIFICATION",
-          payload: { ...notification, id: uuid(), read: false, createdAt: now() },
+          payload: { ...notification, id: uuid(), type: null, assignee: null, createdAt: now() },
         }),
+      addCategory: (input) => {
+        const error = validateCategoryName(input.label, categories.map((c) => c.label));
+        if (error) return Promise.reject(new Error(error));
+        const key = slugifyCategoryKey(
+          input.label,
+          categories.map((c) => c.key),
+        );
+        const created: CategoryDef = {
+          id: uuid(),
+          key,
+          label: input.label.trim(),
+          icon: input.icon,
+          color: input.color,
+          isSystem: false,
+        };
+        setCategories((prev) => [...prev, created]);
+        return Promise.resolve(created);
+      },
+      updateCategory: (id, patch) => {
+        const existing = categories.find((c) => c.id === id);
+        if (!existing) return Promise.reject(new Error("Kategorie nicht gefunden."));
+        if (existing.isSystem) return Promise.reject(new Error("Diese Kategorie kann nicht geändert werden."));
+        if (patch.label !== undefined) {
+          const error = validateCategoryName(
+            patch.label,
+            categories.filter((c) => c.id !== id).map((c) => c.label),
+          );
+          if (error) return Promise.reject(new Error(error));
+        }
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === id
+              ? { ...c, label: patch.label?.trim() ?? c.label, icon: patch.icon ?? c.icon, color: patch.color ?? c.color }
+              : c,
+          ),
+        );
+        return Promise.resolve();
+      },
+      deleteCategory: (id) => {
+        const existing = categories.find((c) => c.id === id);
+        if (!existing) return Promise.reject(new Error("Kategorie nicht gefunden."));
+        if (existing.isSystem) return Promise.reject(new Error("Diese Kategorie kann nicht gelöscht werden."));
+        setCategories((prev) => prev.filter((c) => c.id !== id));
+        for (const event of state.events) {
+          if (event.category === existing.key) {
+            dispatch({ type: "UPDATE_EVENT", payload: { ...event, category: null, updatedAt: now() } });
+          }
+        }
+        return Promise.resolve();
+      },
       restoreFromBackup: (data) => {
         dispatch({ type: "HYDRATE", payload: data });
         return true;
       },
     };
-  }, [state, ready, preferences, toasts, showToast]);
+  }, [state, unreadNotifications, categories, activeProfile, ready, preferences, toasts, showToast]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }
@@ -407,7 +556,7 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
 function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
   const { ready: authReady, session, profile, personId } = useSupabaseAuth();
   const [state, dispatch] = useReducer(reducer, EMPTY_STATE);
-  const [categories, setCategories] = useState<CategoryRef[]>([]);
+  const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [dataReady, setDataReady] = useState(false);
   const [userPrefs, setUserPrefs] = useState<{ reducedMotionOverride: boolean | null; calendarFilters: Assignee[] | "alle" }>({
     reducedMotionOverride: null,
@@ -585,6 +734,34 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
           }
         },
       )
+      // My own read receipts only — reading it as Domenico must never
+      // touch Elisabeth's copy of this same shared notification, so this
+      // is filtered to MY profile id, not the family. Covers this device's
+      // own optimistic mark-as-read echoing back, plus a read made from a
+      // second device signed in as the same person.
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notification_reads", filter: `profile_id=eq.${profile?.id}` },
+        (payload) => {
+          const row = payload.new as { notification_id: string };
+          dispatch({ type: "MARK_NOTIFICATION_READ", payload: { id: row.notification_id } });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "categories", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const id = (payload.old as { id: string }).id;
+            setCategories((prev) => prev.filter((c) => c.id !== id));
+          } else {
+            const row = repo.rowToCategory(payload.new as Record<string, unknown>);
+            setCategories((prev) =>
+              prev.some((c) => c.id === row.id) ? prev.map((c) => (c.id === row.id ? row : c)) : [...prev, row],
+            );
+          }
+        },
+      )
       .subscribe();
 
     return () => {
@@ -604,6 +781,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
 
     return {
       ...state,
+      categories,
       ready: authReady && (!session || dataReady),
       preferences: {
         activeProfile: personId ?? "domenico",
@@ -724,16 +902,69 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
       },
       markNotificationRead: (id) => {
         dispatch({ type: "MARK_NOTIFICATION_READ", payload: { id } });
-        void repo.markNotificationReadRow(id);
+        if (!profile) return;
+        void repo.markNotificationReadRow(id, profile.id);
+      },
+      markAllNotificationsRead: () => {
+        const ids = stateRef.current.notifications.map((n) => n.id);
+        dispatch({ type: "MARK_ALL_NOTIFICATIONS_READ" });
+        if (!profile) return;
+        void repo.markAllNotificationsReadRows(ids, profile.id);
       },
       addLocalNotification: (notification) =>
         dispatch({
           type: "UPSERT_NOTIFICATION",
-          payload: { ...notification, id: uuid(), read: false, createdAt: new Date().toISOString() },
+          payload: { ...notification, id: uuid(), type: null, assignee: null, createdAt: new Date().toISOString() },
         }),
+      addCategory: (input) => {
+        const { familyId, profileId } = requireFamily();
+        const error = validateCategoryName(input.label, categoriesRef.current.map((c) => c.label));
+        if (error) return Promise.reject(new Error(error));
+        return repo
+          .insertCategoryRow(
+            familyId,
+            profileId,
+            categoriesRef.current.map((c) => c.key),
+            input,
+          )
+          .then((row) => {
+            setCategories((prev) => [...prev, row]);
+            return row;
+          });
+      },
+      updateCategory: (id, patch) => {
+        const existing = categoriesRef.current.find((c) => c.id === id);
+        if (!existing) return Promise.reject(new Error("Kategorie nicht gefunden."));
+        if (existing.isSystem) return Promise.reject(new Error("Diese Kategorie kann nicht geändert werden."));
+        if (patch.label !== undefined) {
+          const error = validateCategoryName(
+            patch.label,
+            categoriesRef.current.filter((c) => c.id !== id).map((c) => c.label),
+          );
+          if (error) return Promise.reject(new Error(error));
+        }
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === id
+              ? { ...c, label: patch.label?.trim() ?? c.label, icon: patch.icon ?? c.icon, color: patch.color ?? c.color }
+              : c,
+          ),
+        );
+        return repo.updateCategoryRow(id, patch);
+      },
+      deleteCategory: (id) => {
+        const existing = categoriesRef.current.find((c) => c.id === id);
+        if (!existing) return Promise.reject(new Error("Kategorie nicht gefunden."));
+        if (existing.isSystem) return Promise.reject(new Error("Diese Kategorie kann nicht gelöscht werden."));
+        setCategories((prev) => prev.filter((c) => c.id !== id));
+        // events.category_id has ON DELETE SET NULL — no manual
+        // reassignment needed; the Realtime UPDATE echo for each affected
+        // event will land here with category: null once Postgres applies it.
+        return repo.deleteCategoryRow(id);
+      },
       restoreFromBackup: () => false,
     };
-  }, [state, authReady, session, dataReady, personId, userPrefs, toasts, showToast, familyId, profile]);
+  }, [state, categories, authReady, session, dataReady, personId, userPrefs, toasts, showToast, familyId, profile]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }

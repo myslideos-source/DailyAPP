@@ -459,14 +459,16 @@ export const DEMO_NOTIFICATIONS = [
     id: "n-1",
     title: "Termin morgen",
     body: "Tiefbauer anrufen um 08:30",
-    read: false,
+    type: "event",
+    assignee: null,
     createdAt: new Date().toISOString(),
   },
   {
     id: "n-2",
     title: "Aufgabe fällig",
     body: "Unterlagen Steuererklärung sortieren ist überfällig",
-    read: false,
+    type: "task",
+    assignee: null,
     createdAt: new Date().toISOString(),
   },
 ];

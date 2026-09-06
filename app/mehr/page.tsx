@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Bell,
   BellRing,
   ChevronRight,
   DatabaseBackup,
   Download,
+  House,
   Lock,
   LogOut,
   PiggyBank,
@@ -17,7 +18,6 @@ import {
 } from "lucide-react";
 import { MenuRow } from "@/components/mehr/MenuRow";
 import { useAppStore } from "@/lib/store/app-store";
-import { useSheet } from "@/lib/store/sheet-context";
 import { PROFILES } from "@/lib/demo-data";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { usePwaInstall } from "@/lib/hooks/usePwaInstall";
@@ -43,7 +43,6 @@ function useLogout() {
 
 export default function MehrPage() {
   const { preferences } = useAppStore();
-  const { openNotifications } = useSheet();
   const { isStandalone } = usePwaInstall();
   const handleLogout = useLogout();
 
@@ -51,9 +50,19 @@ export default function MehrPage() {
 
   return (
     <div className="pt-3 pb-4">
-      <h1 className="mb-4 text-[22px] font-bold" style={{ color: "var(--dl-text)" }}>
-        Mehr
-      </h1>
+      <div className="mb-4 flex items-center gap-2.5">
+        <Link
+          href="/"
+          aria-label="Zur Startseite"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/5"
+          style={{ color: "var(--dl-text-dim)" }}
+        >
+          <House size={19} />
+        </Link>
+        <h1 className="text-[22px] font-bold" style={{ color: "var(--dl-text)" }}>
+          Mehr
+        </h1>
+      </div>
 
       <div
         className="mb-5 flex items-center gap-3 rounded-[16px] border px-3.5 py-3"
@@ -73,7 +82,6 @@ export default function MehrPage() {
 
       <div className="flex flex-col gap-2">
         <MenuRow icon={User} label="Profile" description="Domenico & Elisabeth" href="/mehr/profil" />
-        <MenuRow icon={Bell} label="Benachrichtigungen" onClick={openNotifications} />
         <MenuRow icon={BellRing} label="Erinnerungen" description="Termin-Erinnerungen" href="/mehr/erinnerungen" />
         <MenuRow icon={PiggyBank} label="Sparziele" href="/mehr/sparziele" />
         <MenuRow icon={Tags} label="Kategorien" href="/mehr/kategorien" />

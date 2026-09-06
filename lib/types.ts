@@ -13,21 +13,29 @@ export interface Profile {
   avatarColorVar: "domenico" | "elisabeth";
 }
 
-export type EventCategory =
-  | "familie"
-  | "hausbau"
-  | "kinder"
-  | "arbeit"
-  | "einkauf"
-  | "freizeit"
-  | "geburtstag"
-  | "gesundheit"
-  | "sonstiges";
+// A stable slug. The 9 seeded system categories keep these exact literal
+// values; a custom category gets a slug generated from its name at creation
+// time. Kept as a plain string (not a union) so runtime-created categories
+// type-check without widening the union on every addition.
+export type EventCategory = string;
 
 export interface CategoryMeta {
   id: EventCategory;
   label: string;
   icon: string;
+}
+
+// A full category row as exposed by the store — system or custom, dynamic
+// (fetched from Supabase / persisted locally in demo mode), unlike the
+// static CategoryMeta list in lib/demo-data.ts which only covers the 9
+// seeded defaults.
+export interface CategoryDef {
+  id: string;
+  key: EventCategory;
+  label: string;
+  icon: string;
+  color: string | null;
+  isSystem: boolean;
 }
 
 export type RecurrenceRule =
@@ -45,7 +53,7 @@ export interface CalendarEvent {
   endTime: string | null;
   allDay: boolean;
   assignee: Assignee;
-  category: EventCategory;
+  category: EventCategory | null;
   location?: string;
   notes?: string;
   reminderMinutesBefore?: number | null;
@@ -98,11 +106,17 @@ export interface SavingsGoal {
   createdAt: string;
 }
 
+// Represents a notification unread by the current user — the store's
+// `notifications` array only ever holds unread items (see
+// get_unread_notifications()); once read, an item is removed from it
+// rather than flagged, since "read" is per-user, not a property of the
+// notification row itself.
 export interface AppNotification {
   id: string;
   title: string;
   body: string;
-  read: boolean;
+  type?: string | null;
+  assignee?: Assignee | null;
   createdAt: string;
 }
 

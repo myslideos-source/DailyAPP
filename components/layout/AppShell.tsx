@@ -13,7 +13,6 @@ import { EventDetailSheet } from "@/components/sheets/EventDetailSheet";
 import { TaskFormSheet } from "@/components/sheets/TaskFormSheet";
 import { NewEventSheet } from "@/components/sheets/NewEventSheet";
 import { FreeTimeSheet } from "@/components/sheets/FreeTimeSheet";
-import { NotificationsSheet } from "@/components/sheets/NotificationsSheet";
 import { ReminderScheduler } from "@/components/pwa/ReminderScheduler";
 import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
 import { SavePulseProvider } from "@/lib/store/save-pulse-context";
@@ -64,13 +63,12 @@ function SheetRenderer() {
       <TaskFormSheet open={sheet?.kind === "reminder"} onClose={close} kind="reminder" />
       <TaskFormSheet open={sheet?.kind === "shopping"} onClose={close} kind="shopping" />
       <FreeTimeSheet open={sheet?.kind === "freeTime"} onClose={close} />
-      <NotificationsSheet open={sheet?.kind === "notifications"} onClose={close} />
     </>
   );
 }
 
 function ShellChrome({ children }: { children: React.ReactNode }) {
-  const { sheet, openQuickAddMenu, openNotifications, close } = useSheet();
+  const { sheet, openQuickAddMenu, close } = useSheet();
   const { preferences, ready } = useAppStore();
   const { splashDone } = useSplash();
   const pathname = usePathname();
@@ -120,7 +118,7 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
       <DesktopSidebar onPlusClick={openQuickAddMenu} />
 
       <div className="relative z-10 flex min-h-dvh flex-1 flex-col">
-        <Header onOpenNotifications={openNotifications} />
+        <Header />
         <main className="pb-dock mx-auto w-full max-w-3xl flex-1 px-5 md:pb-12 lg:max-w-5xl">{children}</main>
       </div>
 

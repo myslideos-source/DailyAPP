@@ -12,10 +12,12 @@ import {
   computeEventRemindAt,
   computeTaskRemindAt,
 } from "@/lib/reminder-messages";
+import { slugifyCategoryKey } from "@/lib/category-utils";
 import type {
   AppNotification,
   Assignee,
   CalendarEvent,
+  CategoryDef,
   EventCategory,
   RecurrenceRule,
   SavingsEntry,
@@ -31,17 +33,18 @@ function client() {
   return supabase;
 }
 
-export interface CategoryRef {
-  id: string;
-  key: EventCategory;
-}
+/** @deprecated use CategoryDef from lib/types — kept as an alias so
+ * existing call sites passing a full category row still type-check. */
+export type CategoryRef = CategoryDef;
 
-function categoryKeyToId(categories: CategoryRef[], key: EventCategory) {
+function categoryKeyToId(categories: CategoryDef[], key: EventCategory | null): string | null {
+  if (!key) return null;
   return categories.find((c) => c.key === key)?.id ?? null;
 }
 
-function categoryIdToKey(categories: CategoryRef[], id: string | null): EventCategory {
-  return (categories.find((c) => c.id === id)?.key as EventCategory) ?? "sonstiges";
+function categoryIdToKey(categories: CategoryDef[], id: string | null): EventCategory | null {
+  if (!id) return null;
+  return categories.find((c) => c.id === id)?.key ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +124,7 @@ export async function fetchFamilyData(familyId: string) {
 
   const [categoriesRes, eventsRes, tasksRes, subtasksRes, goalsRes, entriesRes, notificationsRes] =
     await Promise.all([
-      supabase.from("categories").select("id, key").eq("family_id", familyId),
+      supabase.from("categories").select("*").eq("family_id", familyId).order("sort_order", { ascending: true }),
       supabase.from("events").select("*").eq("family_id", familyId),
       supabase.from("tasks").select("*").eq("family_id", familyId),
       supabase
@@ -133,21 +136,16 @@ export async function fetchFamilyData(familyId: string) {
         .from("savings_entries")
         .select("*, savings_goals!inner(family_id)")
         .eq("savings_goals.family_id", familyId),
-      supabase
-        .from("notifications")
-        .select("*")
-        .eq("family_id", familyId)
-        .order("created_at", { ascending: false }),
+      // Unread-for-me only — see get_unread_notifications() in
+      // supabase/migrations/20250101001200_notification_reads_and_categories.sql.
+      supabase.rpc("get_unread_notifications"),
     ]);
 
   for (const res of [categoriesRes, eventsRes, tasksRes, subtasksRes, goalsRes, entriesRes, notificationsRes]) {
     if (res.error) throw res.error;
   }
 
-  const categories: CategoryRef[] = (categoriesRes.data ?? []).map((c) => ({
-    id: c.id,
-    key: c.key as EventCategory,
-  }));
+  const categories: CategoryDef[] = (categoriesRes.data ?? []).map(rowToCategory);
 
   const subtasksByTask = new Map<string, Subtask[]>();
   for (const row of subtasksRes.data ?? []) {
@@ -173,7 +171,18 @@ export async function fetchFamilyData(familyId: string) {
 
 type Row = Record<string, unknown>;
 
-function rowToEvent(row: Row, categories: CategoryRef[]): CalendarEvent {
+function rowToCategory(row: Row): CategoryDef {
+  return {
+    id: row.id as string,
+    key: row.key as string,
+    label: row.label as string,
+    icon: row.icon as string,
+    color: (row.color as string | null) ?? null,
+    isSystem: row.is_system as boolean,
+  };
+}
+
+function rowToEvent(row: Row, categories: CategoryDef[]): CalendarEvent {
   return {
     id: row.id as string,
     title: row.title as string,
@@ -239,7 +248,8 @@ function rowToNotification(row: Row): AppNotification {
     id: row.id as string,
     title: row.title as string,
     body: row.body as string,
-    read: row.read as boolean,
+    type: (row.type as string | null) ?? null,
+    assignee: (row.assignee as Assignee | null) ?? null,
     createdAt: row.created_at as string,
   };
 }
@@ -250,7 +260,7 @@ function rowToNotification(row: Row): AppNotification {
 
 export async function insertEvent(
   familyId: string,
-  categories: CategoryRef[],
+  categories: CategoryDef[],
   profileId: string,
   event: Omit<CalendarEvent, "id" | "createdAt" | "updatedAt">,
 ) {
@@ -287,7 +297,7 @@ export async function insertEvent(
 export async function updateEventRow(
   familyId: string,
   id: string,
-  categories: CategoryRef[],
+  categories: CategoryDef[],
   patch: Partial<CalendarEvent>,
   merged: CalendarEvent,
 ) {
@@ -462,8 +472,78 @@ export async function insertSavingsEntry(
   return rowToEntry(data);
 }
 
-export async function markNotificationReadRow(id: string) {
-  const { error } = await client().from("notifications").update({ read: true }).eq("id", id);
+// Per-user read receipt — see notification_reads in
+// supabase/migrations/20250101001200_notification_reads_and_categories.sql.
+// ignoreDuplicates keeps a double-tap (or a race with another device of the
+// same person) a harmless no-op rather than a constraint-violation error.
+export async function markNotificationReadRow(notificationId: string, profileId: string) {
+  const { error } = await client()
+    .from("notification_reads")
+    .upsert(
+      { notification_id: notificationId, profile_id: profileId },
+      { onConflict: "notification_id,profile_id", ignoreDuplicates: true },
+    );
+  if (error) throw error;
+}
+
+export async function markAllNotificationsReadRows(notificationIds: string[], profileId: string) {
+  if (notificationIds.length === 0) return;
+  const { error } = await client()
+    .from("notification_reads")
+    .upsert(
+      notificationIds.map((notificationId) => ({ notification_id: notificationId, profile_id: profileId })),
+      { onConflict: "notification_id,profile_id", ignoreDuplicates: true },
+    );
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// categories — system categories (seed_default_categories) are read-only
+// from the client; only custom ones (is_system = false) can be created,
+// renamed/recolored, or deleted, enforced by RLS as well as here.
+// ---------------------------------------------------------------------------
+
+export async function insertCategoryRow(
+  familyId: string,
+  profileId: string,
+  existingKeys: string[],
+  input: { label: string; icon: string; color: string },
+): Promise<CategoryDef> {
+  const key = slugifyCategoryKey(input.label, existingKeys);
+  const { data, error } = await client()
+    .from("categories")
+    .insert({
+      family_id: familyId,
+      key,
+      label: input.label.trim(),
+      icon: input.icon,
+      color: input.color,
+      created_by: profileId,
+      is_system: false,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToCategory(data);
+}
+
+export async function updateCategoryRow(
+  id: string,
+  patch: { label?: string; icon?: string; color?: string },
+): Promise<void> {
+  const update: Database["public"]["Tables"]["categories"]["Update"] = {};
+  if (patch.label !== undefined) update.label = patch.label.trim();
+  if (patch.icon !== undefined) update.icon = patch.icon;
+  if (patch.color !== undefined) update.color = patch.color;
+  const { error } = await client().from("categories").update(update).eq("id", id);
+  if (error) throw error;
+}
+
+// Events referencing this category are reassigned to "no category" by the
+// events.category_id foreign key's ON DELETE SET NULL — no manual
+// reassignment step needed here.
+export async function deleteCategoryRow(id: string): Promise<void> {
+  const { error } = await client().from("categories").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -497,4 +577,4 @@ export async function getBackupSignedUrl(storagePath: string): Promise<string> {
   return data.signedUrl;
 }
 
-export { rowToEvent, rowToTask, rowToGoal, rowToEntry, rowToNotification };
+export { rowToEvent, rowToTask, rowToGoal, rowToEntry, rowToNotification, rowToCategory };

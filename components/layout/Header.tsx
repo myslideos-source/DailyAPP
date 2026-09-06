@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
@@ -8,12 +9,19 @@ import { useAppStore } from "@/lib/store/app-store";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { IconButton } from "@/components/ui/IconButton";
 import { LogoAmbientGlow } from "@/components/brand/LogoAmbientGlow";
+import { NotificationsPopover } from "@/components/notifications/NotificationsPopover";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 
-export function Header({ onOpenNotifications }: { onOpenNotifications: () => void }) {
+function bellBadgeLabel(count: number): string {
+  return count > 9 ? "9+" : String(count);
+}
+
+export function Header() {
   const { notifications } = useAppStore();
   const reducedMotion = useReducedMotion();
-  const unread = notifications.some((n) => !n.read);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const count = notifications.length;
 
   return (
     <header
@@ -45,15 +53,23 @@ export function Header({ onOpenNotifications }: { onOpenNotifications: () => voi
             <PersonAvatar assignee="domenico" size="sm" />
             <PersonAvatar assignee="elisabeth" size="sm" />
           </div>
-          <IconButton label="Benachrichtigungen" onClick={onOpenNotifications} className="relative">
+          <IconButton
+            ref={bellRef}
+            label="Benachrichtigungen"
+            onClick={() => setPopoverOpen((v) => !v)}
+            className="relative"
+          >
             <Bell size={19} strokeWidth={1.8} />
-            {unread && (
+            {count > 0 && (
               <span
-                className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full"
-                style={{ background: "var(--dl-elisabeth)" }}
-              />
+                className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9.5px] font-bold leading-none"
+                style={{ background: "var(--dl-elisabeth)", color: "var(--dl-bg)" }}
+              >
+                {bellBadgeLabel(count)}
+              </span>
             )}
           </IconButton>
+          <NotificationsPopover open={popoverOpen} onClose={() => setPopoverOpen(false)} anchorRef={bellRef} />
           {/* The Dayli Dock only carries Heute/Kalender/Aufgaben — Mehr
               (Profil, Sparziele, Backup, Einstellungen …) needs its own
               entry point on mobile; desktop already has it in the sidebar. */}

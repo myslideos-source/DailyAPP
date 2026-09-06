@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PrepTaskChecklist } from "@/components/events/PrepTaskChecklist";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSheet } from "@/lib/store/sheet-context";
-import { assigneeColor, assigneeLabel, assigneeSoftColor, CATEGORY_ICONS, categoryLabel } from "@/lib/theme";
+import { assigneeColor, assigneeLabel, assigneeSoftColor, iconByName } from "@/lib/theme";
 import { fromISODate, formatFullDate } from "@/lib/date-utils";
 import { reminderLabel, recurrenceLabel } from "@/lib/event-options";
 import type { CalendarEvent } from "@/lib/types";
@@ -64,11 +64,12 @@ export function EventDetailSheet({
   onClose: () => void;
   eventId: string | null;
 }) {
-  const { events, tasks } = useAppStore();
+  const { events, tasks, categories } = useAppStore();
   const { openEventEdit } = useSheet();
 
   const event = eventId ? (events.find((e) => e.id === eventId) ?? null) : null;
   const prepCount = event ? tasks.filter((t) => t.linkedEventId === event.id).length : 0;
+  const category = event?.category ? (categories.find((c) => c.key === event.category) ?? null) : null;
 
   return (
     <FullscreenPage
@@ -129,7 +130,7 @@ export function EventDetailSheet({
                 className="rounded-full px-3 py-1 text-[12.5px] font-semibold"
                 style={{ background: "var(--dl-card-raised)", color: "var(--dl-text-dim)" }}
               >
-                {categoryLabel(event.category)}
+                {category?.label ?? "Keine Kategorie"}
               </span>
               <span
                 className="rounded-full px-3 py-1 text-[12.5px] font-semibold"
@@ -152,7 +153,11 @@ export function EventDetailSheet({
                 sub={timeSummary(event)}
               />
               <InfoRow icon={Users} label="Zuständig" value={assigneeLabel(event.assignee)} />
-              <InfoRow icon={CATEGORY_ICONS[event.category]} label="Kategorie" value={categoryLabel(event.category)} />
+              <InfoRow
+                icon={iconByName(category?.icon)}
+                label="Kategorie"
+                value={category?.label ?? "Keine Kategorie"}
+              />
               {event.location && <InfoRow icon={MapPin} label="Ort" value={event.location} />}
               {reminderLabel(event.reminderMinutesBefore) && (
                 <InfoRow icon={Bell} label="Erinnerung" value={reminderLabel(event.reminderMinutesBefore)!} />
