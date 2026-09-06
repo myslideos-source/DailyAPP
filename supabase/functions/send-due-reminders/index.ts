@@ -104,20 +104,29 @@ Deno.serve(async (req: Request) => {
     let title = "dayli Erinnerung";
     const body = reminder.message ?? "";
     let recurrenceRule: string | null = null;
+    let assignee: string | null = null;
 
     if (reminder.event_id) {
       const { data: event } = await supabase
         .from("events")
-        .select("title, recurrence_rule")
+        .select("title, recurrence_rule, assignee")
         .eq("id", reminder.event_id)
         .maybeSingle();
       if (event) {
         title = `Erinnerung: ${event.title}`;
         recurrenceRule = event.recurrence_rule;
+        assignee = event.assignee;
       }
     } else if (reminder.task_id) {
-      const { data: task } = await supabase.from("tasks").select("title").eq("id", reminder.task_id).maybeSingle();
-      if (task) title = `Erinnerung: ${task.title}`;
+      const { data: task } = await supabase
+        .from("tasks")
+        .select("title, assignee")
+        .eq("id", reminder.task_id)
+        .maybeSingle();
+      if (task) {
+        title = `Erinnerung: ${task.title}`;
+        assignee = task.assignee;
+      }
     }
 
     // Internal/in-app notification first — this is what the bell shows,
@@ -127,6 +136,8 @@ Deno.serve(async (req: Request) => {
       profile_id: null,
       title,
       body,
+      type: reminder.event_id ? "event" : "task",
+      assignee,
     });
 
     const sig = await hmacHex(secrets.reminder_cron_secret, reminder.id);
