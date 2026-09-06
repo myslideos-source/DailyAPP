@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { DayliDock } from "@/components/layout/DayliDock";
@@ -14,13 +14,17 @@ import { TaskFormSheet } from "@/components/sheets/TaskFormSheet";
 import { NewEventSheet } from "@/components/sheets/NewEventSheet";
 import { FreeTimeSheet } from "@/components/sheets/FreeTimeSheet";
 import { NoteEditorSheet } from "@/components/sheets/NoteEditorSheet";
+import { DailyBriefingCard } from "@/components/today/DailyBriefingCard";
 import { ReminderScheduler } from "@/components/pwa/ReminderScheduler";
 import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
 import { SavePulseProvider } from "@/lib/store/save-pulse-context";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSplash } from "@/lib/store/splash-context";
 import { useViewportBottomFix } from "@/lib/hooks/useViewportBottomFix";
-import { toISODate } from "@/lib/date-utils";
+import { useWidgetSnapshotSync } from "@/lib/hooks/useWidgetSnapshotSync";
+import { useDeepLinks } from "@/lib/hooks/useDeepLinks";
+import { toISODate, getBerlinParts } from "@/lib/date-utils";
+import { computeDailyBriefing } from "@/lib/briefing";
 
 function SheetRenderer() {
   const { sheet, openQuickAdd, openNewEvent, close } = useSheet();
@@ -70,6 +74,61 @@ function SheetRenderer() {
   );
 }
 
+/**
+ * Owns both the automatic once-per-calendar-day daily briefing (mounted
+ * here, inside ShellChrome, so it survives route navigation without
+ * remounting — a page swap must never re-trigger the auto-show check) and
+ * the manually-reopenable briefing card itself. Always computed off the
+ * real events/tasks store, never off whatever date the Kalender/Heute
+ * week-strip currently has selected (spec §7).
+ */
+function DailyBriefingHost() {
+  const { events, tasks, preferences, ready, markDailyBriefingSeen } = useAppStore();
+  const { sheet, openDailyBriefing, close } = useSheet();
+  const router = useRouter();
+  const hasCheckedAutoShowRef = useRef(false);
+
+  useEffect(() => {
+    if (!ready || hasCheckedAutoShowRef.current) return;
+    hasCheckedAutoShowRef.current = true;
+    const { dailyBriefing, activeProfile, dailyBriefingSeenDates } = preferences;
+    if (!dailyBriefing.enabled || !dailyBriefing.autoShow) return;
+    const { isoDate: todayISO, isWeekday } = getBerlinParts();
+    if (dailyBriefing.frequency === "weekdays" && !isWeekday) return;
+    if (dailyBriefingSeenDates[activeProfile] === todayISO) return;
+    openDailyBriefing();
+    // Runs once per mount (guarded above) purely off `ready` flipping to
+    // true — re-reading `preferences`/`openDailyBriefing` fresh inside is
+    // intentional, not a missing dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  const data = useMemo(
+    () =>
+      computeDailyBriefing({
+        events,
+        tasks,
+        personId: preferences.activeProfile,
+        includeShared: preferences.dailyBriefing.includeShared,
+        includePersonal: preferences.dailyBriefing.includePersonal,
+      }),
+    [events, tasks, preferences.activeProfile, preferences.dailyBriefing.includeShared, preferences.dailyBriefing.includePersonal],
+  );
+
+  function handleLater() {
+    markDailyBriefingSeen();
+    close();
+  }
+
+  function handleViewDay() {
+    markDailyBriefingSeen();
+    close();
+    router.push("/");
+  }
+
+  return <DailyBriefingCard open={sheet?.kind === "dailyBriefing"} data={data} onLater={handleLater} onViewDay={handleViewDay} />;
+}
+
 function ShellChrome({ children }: { children: React.ReactNode }) {
   const { sheet, openQuickAddMenu, close } = useSheet();
   const { preferences, ready } = useAppStore();
@@ -79,6 +138,8 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
   const isLoginRoute = pathname === "/login";
 
   useViewportBottomFix();
+  useWidgetSnapshotSync();
+  useDeepLinks();
 
   useEffect(() => {
     if (!ready || !splashDone) return;
@@ -128,6 +189,7 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
       <DayliDock />
       <ToastStack />
       <SheetRenderer />
+      <DailyBriefingHost />
       <ReminderScheduler />
     </div>
   );

@@ -148,9 +148,38 @@ export interface ActivityEntry {
   createdAt: string;
 }
 
+export interface DailyBriefingSettings {
+  enabled: boolean;
+  /** Show the floating briefing card automatically on the first open of a
+   * new calendar day. When false, it's only ever reachable via the manual
+   * briefing icon. */
+  autoShow: boolean;
+  frequency: "daily" | "weekdays";
+  includeShared: boolean;
+  includePersonal: boolean;
+}
+
+export interface WidgetPrivacySettings {
+  showEventTitle: boolean;
+  /** When true, the widget shows only the time of the next event, never
+   * its title — independent of `hidePrivateContent`, which replaces the
+   * title with a placeholder rather than omitting it entirely. */
+  showTimeOnly: boolean;
+  showTasks: boolean;
+  hidePrivateContent: boolean;
+}
+
 export interface UserPreferences {
   activeProfile: PersonId;
   reducedMotionOverride: boolean | null;
   calendarFilters: Assignee[] | "alle";
   hasOnboarded: boolean;
+  dailyBriefing: DailyBriefingSettings;
+  widgetPrivacy: WidgetPrivacySettings;
+  /** Per-person last-seen date for the automatic daily briefing (ISO
+   * yyyy-MM-dd, Europe/Berlin). In Supabase mode only the signed-in
+   * profile's own key is ever populated — user_preferences is private per
+   * profile_id, so a partner's read state is never visible here, by
+   * design. */
+  dailyBriefingSeenDates: Partial<Record<PersonId, string>>;
 }

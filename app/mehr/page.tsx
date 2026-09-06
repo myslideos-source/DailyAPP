@@ -13,7 +13,9 @@ import {
   LogOut,
   NotebookText,
   PiggyBank,
+  Smartphone,
   Sparkles,
+  Sunrise,
   Tags,
   User,
   SlidersHorizontal,
@@ -24,12 +26,14 @@ import { PROFILES } from "@/lib/demo-data";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { usePwaInstall } from "@/lib/hooks/usePwaInstall";
 import { useOptionalSupabaseAuth } from "@/lib/store/auth-context";
+import { clearWidgetSnapshot } from "@/lib/native/widget-bridge";
 
 function useLogout() {
   const router = useRouter();
   const supabaseAuth = useOptionalSupabaseAuth();
 
   return async () => {
+    await clearWidgetSnapshot();
     if (supabaseAuth) {
       await supabaseAuth.signOut();
     } else {
@@ -91,6 +95,8 @@ export default function MehrPage() {
         <MenuRow icon={Tags} label="Kategorien" href="/mehr/kategorien" />
         <MenuRow icon={SlidersHorizontal} label="Kalenderfilter" href="/mehr/filter" />
         <MenuRow icon={Sparkles} label="Darstellung" href="/mehr/darstellung" />
+        <MenuRow icon={Sunrise} label="Tagesbriefing" description="Tägliche Zusammenfassung" href="/mehr/tagesbriefing" />
+        <MenuRow icon={Smartphone} label="iPhone-Widget" description="Was das Widget zeigt" href="/mehr/widget" />
         <MenuRow
           icon={Download}
           label="PWA installieren"

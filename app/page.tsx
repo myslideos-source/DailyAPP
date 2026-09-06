@@ -11,16 +11,18 @@ import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { PROFILES } from "@/lib/demo-data";
 import { toISODate } from "@/lib/date-utils";
 import { expandEventOccurrences, expandEventsForDay } from "@/lib/recurrence";
+import { computeDailyBriefing } from "@/lib/briefing";
 import { Greeting } from "@/components/today/Greeting";
 import { WeekStrip } from "@/components/today/WeekStrip";
 import { TimeForUsCard } from "@/components/today/TimeForUsCard";
+import { TodaySummaryCard } from "@/components/today/TodaySummaryCard";
 import { TomorrowPreview } from "@/components/today/TomorrowPreview";
 import { EventSummaryRow } from "@/components/events/EventSummaryRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function HomePage() {
-  const { events, preferences } = useAppStore();
-  const { openNewEvent } = useSheet();
+  const { events, tasks, preferences } = useAppStore();
+  const { openNewEvent, openDailyBriefing } = useSheet();
   const { splashDone } = useSplash();
   const reducedMotion = useReducedMotion();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -75,6 +77,20 @@ export default function HomePage() {
 
   const activeName = PROFILES[preferences.activeProfile].name;
 
+  // Always the real "today" (Europe/Berlin), never `selectedISO` — the
+  // week-strip's selected day must never leak into the briefing (spec §7).
+  const briefingData = useMemo(
+    () =>
+      computeDailyBriefing({
+        events,
+        tasks,
+        personId: preferences.activeProfile,
+        includeShared: preferences.dailyBriefing.includeShared,
+        includePersonal: preferences.dailyBriefing.includePersonal,
+      }),
+    [events, tasks, preferences.activeProfile, preferences.dailyBriefing.includeShared, preferences.dailyBriefing.includePersonal],
+  );
+
   return (
     <div>
       <Greeting name={activeName} date={selectedDate} animate={splashDone} />
@@ -87,6 +103,7 @@ export default function HomePage() {
         animate={splashDone}
       />
       <TimeForUsCard startLabel={timeForUs.label} subtitle={timeForUs.subtitle} animate={splashDone} />
+      <TodaySummaryCard data={briefingData} onOpen={openDailyBriefing} animate={splashDone} />
 
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div

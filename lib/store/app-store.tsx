@@ -14,6 +14,7 @@ import { v4 as uuid } from "uuid";
 import { createDemoDataset, CATEGORIES, DEMO_NOTIFICATIONS, PROFILES } from "@/lib/demo-data";
 import { slugifyCategoryKey, validateCategoryName } from "@/lib/category-utils";
 import { nextTaskOccurrence } from "@/lib/recurrence";
+import { todayISOInBerlin } from "@/lib/date-utils";
 import {
   categoryCreatedMessage,
   categoryDeletedMessage,
@@ -35,6 +36,7 @@ import type {
   Assignee,
   CalendarEvent,
   CategoryDef,
+  DailyBriefingSettings,
   Note,
   PersonId,
   SavingsEntry,
@@ -42,6 +44,7 @@ import type {
   Subtask,
   TaskItem,
   UserPreferences,
+  WidgetPrivacySettings,
 } from "@/lib/types";
 
 const STORAGE_KEY = "dayli:data:v1";
@@ -265,6 +268,13 @@ interface AppStoreValue extends AppState {
   setActiveProfile: (id: PersonId) => void;
   setCalendarFilters: (filters: Assignee[] | "alle") => void;
   setReducedMotionOverride: (value: boolean | null) => void;
+  updateDailyBriefingSettings: (patch: Partial<DailyBriefingSettings>) => void;
+  updateWidgetPrivacySettings: (patch: Partial<WidgetPrivacySettings>) => void;
+  /** Marks the automatic daily briefing as seen (today, Europe/Berlin) for
+   * the currently active profile only — never the partner's. Suppresses
+   * the auto-show gate for the rest of the calendar day; manual reopening
+   * via the briefing icon is unaffected. */
+  markDailyBriefingSeen: () => void;
   addEvent: (event: Omit<CalendarEvent, "id" | "createdAt" | "updatedAt">) => Promise<CalendarEvent>;
   updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
   /** `deleteLinkedTasks` decides the fate of prep tasks pointing at this
@@ -321,11 +331,29 @@ interface AppStoreValue extends AppState {
 
 const AppStoreContext = createContext<AppStoreValue | null>(null);
 
+const DEFAULT_DAILY_BRIEFING_SETTINGS: DailyBriefingSettings = {
+  enabled: true,
+  autoShow: true,
+  frequency: "daily",
+  includeShared: true,
+  includePersonal: true,
+};
+
+const DEFAULT_WIDGET_PRIVACY_SETTINGS: WidgetPrivacySettings = {
+  showEventTitle: true,
+  showTimeOnly: false,
+  showTasks: true,
+  hidePrivateContent: false,
+};
+
 const DEFAULT_PREFS: UserPreferences = {
   activeProfile: "domenico",
   reducedMotionOverride: null,
   calendarFilters: "alle",
   hasOnboarded: false,
+  dailyBriefing: DEFAULT_DAILY_BRIEFING_SETTINGS,
+  widgetPrivacy: DEFAULT_WIDGET_PRIVACY_SETTINGS,
+  dailyBriefingSeenDates: {},
 };
 
 function useToasts() {
@@ -446,6 +474,15 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
         setPreferences((p) => ({ ...p, calendarFilters: filters })),
       setReducedMotionOverride: (value) =>
         setPreferences((p) => ({ ...p, reducedMotionOverride: value })),
+      updateDailyBriefingSettings: (patch) =>
+        setPreferences((p) => ({ ...p, dailyBriefing: { ...p.dailyBriefing, ...patch } })),
+      updateWidgetPrivacySettings: (patch) =>
+        setPreferences((p) => ({ ...p, widgetPrivacy: { ...p.widgetPrivacy, ...patch } })),
+      markDailyBriefingSeen: () =>
+        setPreferences((p) => ({
+          ...p,
+          dailyBriefingSeenDates: { ...p.dailyBriefingSeenDates, [p.activeProfile]: todayISOInBerlin() },
+        })),
       addEvent: (event) => {
         const created: CalendarEvent = { ...event, id: uuid(), createdAt: now(), updatedAt: now() };
         dispatch({ type: "ADD_EVENT", payload: created });
@@ -673,9 +710,18 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, EMPTY_STATE);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [dataReady, setDataReady] = useState(false);
-  const [userPrefs, setUserPrefs] = useState<{ reducedMotionOverride: boolean | null; calendarFilters: Assignee[] | "alle" }>({
+  const [userPrefs, setUserPrefs] = useState<{
+    reducedMotionOverride: boolean | null;
+    calendarFilters: Assignee[] | "alle";
+    dailyBriefing: DailyBriefingSettings;
+    widgetPrivacy: WidgetPrivacySettings;
+    lastDailyBriefingSeenDate: string | null;
+  }>({
     reducedMotionOverride: null,
     calendarFilters: "alle",
+    dailyBriefing: DEFAULT_DAILY_BRIEFING_SETTINGS,
+    widgetPrivacy: DEFAULT_WIDGET_PRIVACY_SETTINGS,
+    lastDailyBriefingSeenDate: null,
   });
   const { toasts, showToast } = useToasts();
   const stateRef = useRef(state);
@@ -739,7 +785,9 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     supabase
       .from("user_preferences")
-      .select("reduced_motion_override, calendar_filters")
+      .select(
+        "reduced_motion_override, calendar_filters, daily_briefing_enabled, daily_briefing_auto_show, daily_briefing_frequency, daily_briefing_include_shared, daily_briefing_include_personal, last_daily_briefing_seen_date, widget_show_event_title, widget_show_time_only, widget_show_tasks, widget_hide_private_content",
+      )
       .eq("profile_id", profile.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -747,6 +795,20 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         setUserPrefs({
           reducedMotionOverride: data.reduced_motion_override,
           calendarFilters: (data.calendar_filters as Assignee[] | "alle") ?? "alle",
+          dailyBriefing: {
+            enabled: data.daily_briefing_enabled ?? true,
+            autoShow: data.daily_briefing_auto_show ?? true,
+            frequency: (data.daily_briefing_frequency as "daily" | "weekdays") ?? "daily",
+            includeShared: data.daily_briefing_include_shared ?? true,
+            includePersonal: data.daily_briefing_include_personal ?? true,
+          },
+          widgetPrivacy: {
+            showEventTitle: data.widget_show_event_title ?? true,
+            showTimeOnly: data.widget_show_time_only ?? false,
+            showTasks: data.widget_show_tasks ?? true,
+            hidePrivateContent: data.widget_hide_private_content ?? false,
+          },
+          lastDailyBriefingSeenDate: data.last_daily_briefing_seen_date,
         });
       });
     return () => {
@@ -931,6 +993,11 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         reducedMotionOverride: userPrefs.reducedMotionOverride,
         calendarFilters: userPrefs.calendarFilters,
         hasOnboarded: Boolean(session && profile?.familyId),
+        dailyBriefing: userPrefs.dailyBriefing,
+        widgetPrivacy: userPrefs.widgetPrivacy,
+        dailyBriefingSeenDates: personId && userPrefs.lastDailyBriefingSeenDate
+          ? { [personId]: userPrefs.lastDailyBriefingSeenDate }
+          : {},
       },
       toasts,
       showToast,
@@ -951,6 +1018,42 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         void getSupabaseClient()
           ?.from("user_preferences")
           .update({ reduced_motion_override: value })
+          .eq("profile_id", profile.id);
+      },
+      updateDailyBriefingSettings: (patch) => {
+        setUserPrefs((p) => ({ ...p, dailyBriefing: { ...p.dailyBriefing, ...patch } }));
+        if (!profile) return;
+        void getSupabaseClient()
+          ?.from("user_preferences")
+          .update({
+            ...("enabled" in patch ? { daily_briefing_enabled: patch.enabled } : {}),
+            ...("autoShow" in patch ? { daily_briefing_auto_show: patch.autoShow } : {}),
+            ...("frequency" in patch ? { daily_briefing_frequency: patch.frequency } : {}),
+            ...("includeShared" in patch ? { daily_briefing_include_shared: patch.includeShared } : {}),
+            ...("includePersonal" in patch ? { daily_briefing_include_personal: patch.includePersonal } : {}),
+          })
+          .eq("profile_id", profile.id);
+      },
+      updateWidgetPrivacySettings: (patch) => {
+        setUserPrefs((p) => ({ ...p, widgetPrivacy: { ...p.widgetPrivacy, ...patch } }));
+        if (!profile) return;
+        void getSupabaseClient()
+          ?.from("user_preferences")
+          .update({
+            ...("showEventTitle" in patch ? { widget_show_event_title: patch.showEventTitle } : {}),
+            ...("showTimeOnly" in patch ? { widget_show_time_only: patch.showTimeOnly } : {}),
+            ...("showTasks" in patch ? { widget_show_tasks: patch.showTasks } : {}),
+            ...("hidePrivateContent" in patch ? { widget_hide_private_content: patch.hidePrivateContent } : {}),
+          })
+          .eq("profile_id", profile.id);
+      },
+      markDailyBriefingSeen: () => {
+        const seenDate = todayISOInBerlin();
+        setUserPrefs((p) => ({ ...p, lastDailyBriefingSeenDate: seenDate }));
+        if (!profile) return;
+        void getSupabaseClient()
+          ?.from("user_preferences")
+          .update({ last_daily_briefing_seen_date: seenDate })
           .eq("profile_id", profile.id);
       },
       addEvent: (event) => {
