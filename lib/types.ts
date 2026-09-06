@@ -80,6 +80,11 @@ export interface TaskItem {
   done: boolean;
   doneAt?: string | null;
   recurrence: RecurrenceRule;
+  /** When true, completing a recurring task swaps the assignee (Domenico
+   * <-> Elisabeth) on the auto-generated next occurrence. Ignored for
+   * "gemeinsam" tasks and whenever recurrence is "none". Optional at
+   * creation (defaults to false) since most tasks aren't recurring. */
+  rotateAssignee?: boolean;
   isShopping: boolean;
   linkedEventId?: string | null;
   reminderMinutesBefore?: number | null;
@@ -117,6 +122,29 @@ export interface AppNotification {
   body: string;
   type?: string | null;
   assignee?: Assignee | null;
+  createdAt: string;
+}
+
+// A single shared note in the family's notes list (Apple-Notes-style: many
+// independent notes, not one shared scratchpad). `updatedBy` lets the UI
+// show "zuletzt von Elisabeth bearbeitet" without a join at render time.
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  updatedBy?: PersonId | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// One entry in the family's activity feed. `message` is the pre-built,
+// actor-agnostic action description (e.g. "„Bemusterung Haus" erstellt");
+// the UI prefixes it with "Du" or the partner's name by comparing
+// `actorId` against the viewer's own profile id.
+export interface ActivityEntry {
+  id: string;
+  actorId: PersonId | null;
+  message: string;
   createdAt: string;
 }
 

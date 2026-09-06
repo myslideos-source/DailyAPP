@@ -7,6 +7,7 @@ import { Bell, Calendar, CheckSquare, PiggyBank, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAppStore } from "@/lib/store/app-store";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
+import { relativeTimeFromNow } from "@/lib/date-utils";
 import type { AppNotification, Assignee } from "@/lib/types";
 
 // Notifications stay visible in the popover for a moment after opening even
@@ -34,19 +35,6 @@ function dotColor(assignee: Assignee | null | undefined): string {
   if (assignee === "elisabeth") return "var(--dl-elisabeth)";
   if (assignee === "gemeinsam") return "var(--dl-violet)";
   return "color-mix(in srgb, var(--dl-together) 55%, var(--dl-domenico) 45%)";
-}
-
-function relativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.round(diffMs / 60000);
-  if (minutes < 1) return "gerade eben";
-  if (minutes < 60) return `vor ${minutes} Min.`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `vor ${hours} Std.`;
-  const days = Math.round(hours / 24);
-  if (days === 1) return "gestern";
-  if (days < 7) return `vor ${days} Tagen`;
-  return new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
 }
 
 interface NotificationRowProps {
@@ -89,7 +77,7 @@ function NotificationRow({ notification, icon: Icon, onOpen }: NotificationRowPr
             {notification.body}
           </p>
           <p className="mt-1 pl-3 text-[11px]" style={{ color: "var(--dl-text-faint)" }}>
-            {relativeTime(notification.createdAt)}
+            {relativeTimeFromNow(notification.createdAt)}
           </p>
         </div>
       </button>

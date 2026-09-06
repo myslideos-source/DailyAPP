@@ -1,6 +1,8 @@
 import type {
+  ActivityEntry,
   AppNotification,
   CalendarEvent,
+  Note,
   SavingsEntry,
   SavingsGoal,
   TaskItem,
@@ -14,6 +16,8 @@ export interface BackupPayload {
   savingsGoals: SavingsGoal[];
   savingsEntries: SavingsEntry[];
   notifications: AppNotification[];
+  notes: Note[];
+  activity: ActivityEntry[];
 }
 
 export function serializeBackup(data: Omit<BackupPayload, "version" | "exportedAt">): string {
@@ -54,6 +58,8 @@ export function parseBackup(json: string): BackupPayload {
     savingsGoals: data.savingsGoals,
     savingsEntries: data.savingsEntries,
     notifications: Array.isArray(data.notifications) ? data.notifications : [],
+    notes: Array.isArray(data.notes) ? data.notes : [],
+    activity: Array.isArray(data.activity) ? data.activity : [],
   };
 }
 

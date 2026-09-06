@@ -15,6 +15,7 @@ export type ActiveSheet =
   | { kind: "shopping" }
   | { kind: "birthday" }
   | { kind: "freeTime" }
+  | { kind: "noteEditor"; noteId: string }
   | null;
 
 interface SheetContextValue {
@@ -40,6 +41,7 @@ interface SheetContextValue {
   openEventEdit: (eventId: string) => void;
   openQuickAdd: (kind: QuickAddKind) => void;
   openFreeTime: () => void;
+  openNoteEditor: (noteId: string) => void;
   close: () => void;
 }
 
@@ -59,6 +61,7 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
       openEventEdit: (eventId) => setSheet({ kind: "eventEdit", editEventId: eventId }),
       openQuickAdd: (kind) => setSheet({ kind }),
       openFreeTime: () => setSheet({ kind: "freeTime" }),
+      openNoteEditor: (noteId) => setSheet({ kind: "noteEditor", noteId }),
       close: () => setSheet(null),
     }),
     [sheet],

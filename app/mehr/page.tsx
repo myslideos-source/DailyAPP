@@ -7,9 +7,11 @@ import {
   ChevronRight,
   DatabaseBackup,
   Download,
+  History,
   House,
   Lock,
   LogOut,
+  NotebookText,
   PiggyBank,
   Sparkles,
   Tags,
@@ -84,6 +86,8 @@ export default function MehrPage() {
         <MenuRow icon={User} label="Profile" description="Domenico & Elisabeth" href="/mehr/profil" />
         <MenuRow icon={BellRing} label="Erinnerungen" description="Termin-Erinnerungen" href="/mehr/erinnerungen" />
         <MenuRow icon={PiggyBank} label="Sparziele" href="/mehr/sparziele" />
+        <MenuRow icon={NotebookText} label="Notizen" description="Geteilt mit der Familie" href="/mehr/notizen" />
+        <MenuRow icon={History} label="Verlauf" description="Wer hat was gemacht" href="/mehr/verlauf" />
         <MenuRow icon={Tags} label="Kategorien" href="/mehr/kategorien" />
         <MenuRow icon={SlidersHorizontal} label="Kalenderfilter" href="/mehr/filter" />
         <MenuRow icon={Sparkles} label="Darstellung" href="/mehr/darstellung" />

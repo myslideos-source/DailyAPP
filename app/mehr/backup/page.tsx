@@ -62,13 +62,14 @@ function AutomaticBackups() {
 }
 
 export default function BackupPage() {
-  const { events, tasks, savingsGoals, savingsEntries, notifications, restoreFromBackup, showToast } = useAppStore();
+  const { events, tasks, savingsGoals, savingsEntries, notifications, notes, activity, restoreFromBackup, showToast } =
+    useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<File | null>(null);
 
   function handleExport() {
-    const json = serializeBackup({ events, tasks, savingsGoals, savingsEntries, notifications });
+    const json = serializeBackup({ events, tasks, savingsGoals, savingsEntries, notifications, notes, activity });
     downloadBackup(json);
     showToast("Sicherung heruntergeladen");
   }

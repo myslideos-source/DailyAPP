@@ -14,11 +14,14 @@ import {
 } from "@/lib/reminder-messages";
 import { slugifyCategoryKey } from "@/lib/category-utils";
 import type {
+  ActivityEntry,
   AppNotification,
   Assignee,
   CalendarEvent,
   CategoryDef,
   EventCategory,
+  Note,
+  PersonId,
   RecurrenceRule,
   SavingsEntry,
   SavingsGoal,
@@ -45,6 +48,20 @@ function categoryKeyToId(categories: CategoryDef[], key: EventCategory | null): 
 function categoryIdToKey(categories: CategoryDef[], id: string | null): EventCategory | null {
   if (!id) return null;
   return categories.find((c) => c.id === id)?.key ?? null;
+}
+
+// This app only ever has two family members, identified by display name —
+// the same heuristic auth-context.tsx uses to derive the signed-in user's
+// own personId. Needed here to resolve *other* rows' actor/updated-by uuids
+// (activity_log, notes) back to "domenico"/"elisabeth" for display.
+export interface FamilyProfileRef {
+  id: string;
+  personId: PersonId;
+}
+
+function resolvePersonId(profiles: FamilyProfileRef[], id: string | null): PersonId | null {
+  if (!id) return null;
+  return profiles.find((p) => p.id === id)?.personId ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,28 +139,64 @@ export async function syncTaskReminder(familyId: string, task: TaskItem, linkedE
 export async function fetchFamilyData(familyId: string) {
   const supabase = client();
 
-  const [categoriesRes, eventsRes, tasksRes, subtasksRes, goalsRes, entriesRes, notificationsRes] =
-    await Promise.all([
-      supabase.from("categories").select("*").eq("family_id", familyId).order("sort_order", { ascending: true }),
-      supabase.from("events").select("*").eq("family_id", familyId),
-      supabase.from("tasks").select("*").eq("family_id", familyId),
-      supabase
-        .from("task_subtasks")
-        .select("*, tasks!inner(family_id)")
-        .eq("tasks.family_id", familyId),
-      supabase.from("savings_goals").select("*").eq("family_id", familyId),
-      supabase
-        .from("savings_entries")
-        .select("*, savings_goals!inner(family_id)")
-        .eq("savings_goals.family_id", familyId),
-      // Unread-for-me only — see get_unread_notifications() in
-      // supabase/migrations/20250101001200_notification_reads_and_categories.sql.
-      supabase.rpc("get_unread_notifications"),
-    ]);
+  const [
+    profilesRes,
+    categoriesRes,
+    eventsRes,
+    tasksRes,
+    subtasksRes,
+    goalsRes,
+    entriesRes,
+    notificationsRes,
+    notesRes,
+    activityRes,
+  ] = await Promise.all([
+    supabase.from("profiles").select("id, display_name").eq("family_id", familyId),
+    supabase.from("categories").select("*").eq("family_id", familyId).order("sort_order", { ascending: true }),
+    supabase.from("events").select("*").eq("family_id", familyId),
+    supabase.from("tasks").select("*").eq("family_id", familyId),
+    supabase
+      .from("task_subtasks")
+      .select("*, tasks!inner(family_id)")
+      .eq("tasks.family_id", familyId),
+    supabase.from("savings_goals").select("*").eq("family_id", familyId),
+    supabase
+      .from("savings_entries")
+      .select("*, savings_goals!inner(family_id)")
+      .eq("savings_goals.family_id", familyId),
+    // Unread-for-me only — see get_unread_notifications() in
+    // supabase/migrations/20250101001200_notification_reads_and_categories.sql.
+    supabase.rpc("get_unread_notifications"),
+    supabase.from("notes").select("*").eq("family_id", familyId).order("updated_at", { ascending: false }),
+    supabase
+      .from("activity_log")
+      .select("*")
+      .eq("family_id", familyId)
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
 
-  for (const res of [categoriesRes, eventsRes, tasksRes, subtasksRes, goalsRes, entriesRes, notificationsRes]) {
+  for (const res of [
+    profilesRes,
+    categoriesRes,
+    eventsRes,
+    tasksRes,
+    subtasksRes,
+    goalsRes,
+    entriesRes,
+    notificationsRes,
+    notesRes,
+    activityRes,
+  ]) {
     if (res.error) throw res.error;
   }
+
+  // Same "elisabeth"-by-name heuristic as auth-context.tsx's personId — this
+  // app only ever has two family members.
+  const profiles: FamilyProfileRef[] = (profilesRes.data ?? []).map((p) => ({
+    id: p.id,
+    personId: p.display_name.toLowerCase() === "elisabeth" ? "elisabeth" : "domenico",
+  }));
 
   const categories: CategoryDef[] = (categoriesRes.data ?? []).map(rowToCategory);
 
@@ -161,8 +214,10 @@ export async function fetchFamilyData(familyId: string) {
   const savingsGoals: SavingsGoal[] = (goalsRes.data ?? []).map(rowToGoal);
   const savingsEntries: SavingsEntry[] = (entriesRes.data ?? []).map(rowToEntry);
   const notifications: AppNotification[] = (notificationsRes.data ?? []).map(rowToNotification);
+  const notes: Note[] = (notesRes.data ?? []).map((row) => rowToNote(row, profiles));
+  const activity: ActivityEntry[] = (activityRes.data ?? []).map((row) => rowToActivity(row, profiles));
 
-  return { categories, events, tasks, savingsGoals, savingsEntries, notifications };
+  return { profiles, categories, events, tasks, savingsGoals, savingsEntries, notifications, notes, activity };
 }
 
 // ---------------------------------------------------------------------------
@@ -212,6 +267,7 @@ function rowToTask(row: Row, subtasks: Subtask[]): TaskItem {
     done: row.done as boolean,
     doneAt: (row.done_at as string | null) ?? null,
     recurrence: row.recurrence_rule as RecurrenceRule,
+    rotateAssignee: (row.rotate_assignee as boolean | null) ?? false,
     isShopping: row.is_shopping as boolean,
     linkedEventId: (row.linked_event_id as string | null) ?? null,
     reminderMinutesBefore: (row.reminder_minutes_before as number | null) ?? null,
@@ -239,6 +295,26 @@ function rowToEntry(row: Row): SavingsEntry {
     amount: Number(row.amount),
     contributor: row.contributor as Assignee,
     note: (row.note as string | null) ?? undefined,
+    createdAt: row.created_at as string,
+  };
+}
+
+function rowToNote(row: Row, profiles: FamilyProfileRef[]): Note {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    body: row.body as string,
+    updatedBy: resolvePersonId(profiles, row.updated_by as string | null),
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+function rowToActivity(row: Row, profiles: FamilyProfileRef[]): ActivityEntry {
+  return {
+    id: row.id as string,
+    actorId: resolvePersonId(profiles, row.actor_id as string | null),
+    message: row.message as string,
     createdAt: row.created_at as string,
   };
 }
@@ -353,6 +429,7 @@ export async function insertTask(
       priority: task.priority,
       done: task.done,
       recurrence_rule: task.recurrence,
+      rotate_assignee: task.rotateAssignee ?? false,
       is_shopping: task.isShopping,
       linked_event_id: task.linkedEventId ?? null,
       reminder_minutes_before: task.reminderMinutesBefore ?? null,
@@ -399,6 +476,7 @@ export async function updateTaskRow(
   if (patch.done !== undefined) update.done = patch.done;
   if (patch.doneAt !== undefined) update.done_at = patch.doneAt;
   if (patch.recurrence !== undefined) update.recurrence_rule = patch.recurrence;
+  if (patch.rotateAssignee !== undefined) update.rotate_assignee = patch.rotateAssignee;
   if (patch.isShopping !== undefined) update.is_shopping = patch.isShopping;
   if (patch.linkedEventId !== undefined) update.linked_event_id = patch.linkedEventId ?? null;
   if (patch.reminderMinutesBefore !== undefined) update.reminder_minutes_before = patch.reminderMinutesBefore;
@@ -548,6 +626,59 @@ export async function deleteCategoryRow(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// notes — a shared list (not a single scratchpad); any family member can
+// create/edit/delete any note, mirroring the tasks/shopping-list model.
+// ---------------------------------------------------------------------------
+
+export async function insertNoteRow(
+  familyId: string,
+  profileId: string,
+  input: { title: string; body: string },
+  profiles: FamilyProfileRef[],
+): Promise<Note> {
+  const { data, error } = await client()
+    .from("notes")
+    .insert({
+      family_id: familyId,
+      title: input.title,
+      body: input.body,
+      created_by: profileId,
+      updated_by: profileId,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToNote(data, profiles);
+}
+
+export async function updateNoteRow(
+  id: string,
+  profileId: string,
+  patch: { title?: string; body?: string },
+): Promise<void> {
+  const update: Database["public"]["Tables"]["notes"]["Update"] = { updated_by: profileId };
+  if (patch.title !== undefined) update.title = patch.title;
+  if (patch.body !== undefined) update.body = patch.body;
+  const { error } = await client().from("notes").update(update).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteNoteRow(id: string): Promise<void> {
+  const { error } = await client().from("notes").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// activity log — best-effort: a failed write here never breaks the mutation
+// it describes, so errors are logged rather than thrown.
+// ---------------------------------------------------------------------------
+
+export async function logActivity(familyId: string, actorId: string | null, message: string): Promise<void> {
+  const { error } = await client().from("activity_log").insert({ family_id: familyId, actor_id: actorId, message });
+  if (error) console.error("Failed to log activity", error);
+}
+
+// ---------------------------------------------------------------------------
 // automatic backups — written weekly by the send-weekly-backup edge function
 // ---------------------------------------------------------------------------
 
@@ -577,4 +708,4 @@ export async function getBackupSignedUrl(storagePath: string): Promise<string> {
   return data.signedUrl;
 }
 
-export { rowToEvent, rowToTask, rowToGoal, rowToEntry, rowToNotification, rowToCategory };
+export { rowToEvent, rowToTask, rowToGoal, rowToEntry, rowToNotification, rowToCategory, rowToNote, rowToActivity };
