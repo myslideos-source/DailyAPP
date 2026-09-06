@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { CalendarDays, ListChecks, MoreHorizontal, Plus, House } from "lucide-react";
+import { CalendarDays, ListChecks, MoreHorizontal, NotebookText, Plus, House } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SavePulseSweep, useSavePulseScale } from "@/components/layout/SavePulseGlow";
 
@@ -12,12 +12,26 @@ const ITEMS = [
   { href: "/", label: "Heute", icon: House },
   { href: "/kalender", label: "Kalender", icon: CalendarDays },
   { href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
+  { href: "/mehr/notizen", label: "Notizen", icon: NotebookText },
   { href: "/mehr", label: "Mehr", icon: MoreHorizontal },
 ] as const;
+
+// Picks the most specific matching item (e.g. "/mehr/notizen" over "/mehr"
+// when both would otherwise match via startsWith), so a sub-route pulled
+// out into its own nav entry doesn't also highlight its parent.
+function findActiveHref(pathname: string): string | null {
+  let best: string | null = null;
+  for (const item of ITEMS) {
+    const matches = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+    if (matches && (!best || item.href.length > best.length)) best = item.href;
+  }
+  return best;
+}
 
 export function DesktopSidebar({ onPlusClick }: { onPlusClick: () => void }) {
   const pathname = usePathname();
   const pulseScale = useSavePulseScale();
+  const activeHref = findActiveHref(pathname);
 
   return (
     <aside
@@ -31,8 +45,7 @@ export function DesktopSidebar({ onPlusClick }: { onPlusClick: () => void }) {
 
         <nav className="flex flex-col gap-1">
           {ITEMS.map((item) => {
-            const active =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const active = item.href === activeHref;
             return (
               <Link
                 key={item.href}
