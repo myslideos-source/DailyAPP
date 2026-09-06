@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { AnimatePresence } from "motion/react";
-import { CalendarDays, House, ListChecks } from "lucide-react";
+import { CalendarDays, House, ListChecks, NotebookText } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DockNavigationItem } from "@/components/layout/DockNavigationItem";
 import { DayliActionOrb } from "@/components/layout/DayliActionOrb";
@@ -21,11 +21,12 @@ const ITEMS: DockItem[] = [
   { id: "heute", href: "/", label: "Heute", icon: House },
   { id: "kalender", href: "/kalender", label: "Kalender", icon: CalendarDays },
   { id: "aufgaben", href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
+  { id: "notizen", href: "/mehr/notizen", label: "Notizen", icon: NotebookText },
 ];
 
 // Visual position within the dock, expressed as flex `order` — the orb
 // always sits at 2, the active item always lands just left of it at 1, and
-// the remaining two keep their original relative order to its right.
+// the remaining items keep their original relative order to its right.
 const ORB_ORDER = 2;
 
 function matchesRoute(pathname: string, href: string) {
@@ -37,13 +38,13 @@ function matchesRoute(pathname: string, href: string) {
  * route (including /mehr and its subpages) so "Heute" is always one tap
  * away from anywhere in the app — it must never disappear or be blocked by
  * a local route (see the App-Shell navigation requirements). `active` is a
- * pure styling flag (true only on the 3 known tabs' own routes, so the app
+ * pure styling flag (true only on the known tabs' own routes, so the app
  * never implies you're on a page you're not); the left slot next to the orb
  * defaults to "heute" for visual balance whenever nothing is truly active.
  *
- * All three destinations stay mounted as stable flex siblings at all
- * times — switching the active/left-slot one only changes size/style and
- * CSS `order`, never which component instance holds which slot — so the
+ * All destinations stay mounted as stable flex siblings at all times —
+ * switching the active/left-slot one only changes size/style and CSS
+ * `order`, never which component instance holds which slot — so the
  * transition between "wide active capsule" and "compact icon" is a single
  * continuous `layout` FLIP instead of an unmount/remount across two
  * separate render slots (which briefly produced a blank, mispositioned
