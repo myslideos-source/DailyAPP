@@ -50,6 +50,21 @@ export function relativeDayLabel(date: Date) {
   return format(date, "EEEE", { locale: de });
 }
 
+/** Capitalized label for an event row's date prefix (spec: home page
+ * "Als Nächstes"/"Weitere Termine") — null for today (show only the time,
+ * no date prefix at all), "Morgen" for tomorrow, the weekday name within
+ * the same week, otherwise "d. MMMM". Distinct from `relativeDayLabel`
+ * (which always names a weekday for any future date, no "today = no
+ * label" case) and from the lowercase mid-sentence `relativeDayPhrase`
+ * below. */
+export function relativeDayLabelForRow(date: Date): string | null {
+  if (isToday(date)) return null;
+  if (isTomorrow(date)) return "Morgen";
+  const diff = differenceInCalendarDays(date, new Date());
+  if (diff > 1 && diff < 7) return format(date, "EEEE", { locale: de });
+  return format(date, "d. MMMM", { locale: de });
+}
+
 /** Lowercase, mid-sentence variant of relativeDayLabel — for reminder/
  * notification copy like "Höhenplan bereitlegen (morgen)." */
 export function relativeDayPhrase(date: Date) {

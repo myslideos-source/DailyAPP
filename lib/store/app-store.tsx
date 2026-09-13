@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 import { v4 as uuid } from "uuid";
-import { createDemoDataset, CATEGORIES, DEMO_NOTIFICATIONS, PROFILES } from "@/lib/demo-data";
+import { createDemoDataset, CATEGORIES, HAUSBAU_CATEGORIES, DEMO_NOTIFICATIONS, PROFILES } from "@/lib/demo-data";
 import { slugifyCategoryKey, validateCategoryName } from "@/lib/category-utils";
 import { nextTaskOccurrence } from "@/lib/recurrence";
 import { todayISOInBerlin } from "@/lib/date-utils";
@@ -20,6 +20,9 @@ import {
   categoryDeletedMessage,
   eventCreatedMessage,
   eventDeletedMessage,
+  hausbauExpenseAddedMessage,
+  hausbauExpenseDeletedMessage,
+  hausbauSelfWorkAddedMessage,
   noteCreatedMessage,
   savingsEntryAddedMessage,
   savingsGoalCreatedMessage,
@@ -37,6 +40,10 @@ import type {
   CalendarEvent,
   CategoryDef,
   DailyBriefingSettings,
+  HausbauBudget,
+  HausbauCategory,
+  HausbauExpense,
+  HausbauSelfWork,
   Note,
   PersonId,
   SavingsEntry,
@@ -46,11 +53,13 @@ import type {
   UserPreferences,
   WidgetPrivacySettings,
 } from "@/lib/types";
+import type { HausbauExpenseInput, HausbauSelfWorkInput } from "@/lib/supabase/repository";
 
 const STORAGE_KEY = "dayli:data:v1";
 const PREFS_KEY = "dayli:prefs:v1";
 const NOTIF_READS_KEY = "dayli:notif-reads:v1";
 const CATEGORIES_KEY = "dayli:categories:v1";
+const HAUSBAU_CATEGORIES_KEY = "dayli:hausbau-categories:v1";
 
 const SYSTEM_CATEGORIES: CategoryDef[] = CATEGORIES.map((c) => ({
   id: c.id,
@@ -59,6 +68,16 @@ const SYSTEM_CATEGORIES: CategoryDef[] = CATEGORIES.map((c) => ({
   icon: c.icon,
   color: null,
   isSystem: true,
+}));
+
+const SYSTEM_HAUSBAU_CATEGORIES: HausbauCategory[] = HAUSBAU_CATEGORIES.map((c) => ({
+  id: c.id,
+  key: c.id,
+  label: c.label,
+  icon: c.icon,
+  color: null,
+  isSystem: true,
+  isActive: true,
 }));
 
 export interface CategoryInput {
@@ -79,6 +98,12 @@ interface AppState {
   /** Quick-skim feed of who did what, most recent first — creations,
    * completions, deletions only, never a field-level diff. */
   activity: ActivityEntry[];
+  /** Null until the Grundeinrichtung (initial setup) has been completed
+   * once — gates whether the Hausbau tile shows the setup prompt or the
+   * real numbers. */
+  hausbauBudget: HausbauBudget | null;
+  hausbauExpenses: HausbauExpense[];
+  hausbauSelfWork: HausbauSelfWork[];
 }
 
 const EMPTY_STATE: AppState = {
@@ -89,6 +114,9 @@ const EMPTY_STATE: AppState = {
   notifications: [],
   notes: [],
   activity: [],
+  hausbauBudget: null,
+  hausbauExpenses: [],
+  hausbauSelfWork: [],
 };
 
 // Keeps the feed to a quick skim rather than an ever-growing list; older
@@ -112,6 +140,13 @@ type Action =
   | { type: "UPSERT_NOTE"; payload: Note }
   | { type: "DELETE_NOTE"; payload: { id: string } }
   | { type: "ADD_ACTIVITY"; payload: ActivityEntry }
+  | { type: "SET_HAUSBAU_BUDGET"; payload: HausbauBudget }
+  | { type: "ADD_HAUSBAU_EXPENSE"; payload: HausbauExpense }
+  | { type: "UPDATE_HAUSBAU_EXPENSE"; payload: HausbauExpense }
+  | { type: "DELETE_HAUSBAU_EXPENSE"; payload: { id: string } }
+  | { type: "ADD_HAUSBAU_SELF_WORK"; payload: HausbauSelfWork }
+  | { type: "UPDATE_HAUSBAU_SELF_WORK"; payload: HausbauSelfWork }
+  | { type: "DELETE_HAUSBAU_SELF_WORK"; payload: { id: string } }
   | { type: "HYDRATE"; payload: AppState };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -246,6 +281,40 @@ function reducer(state: AppState, action: Action): AppState {
       if (state.activity.some((a) => a.id === action.payload.id)) return state;
       return { ...state, activity: [action.payload, ...state.activity].slice(0, MAX_ACTIVITY_ENTRIES) };
     }
+    case "SET_HAUSBAU_BUDGET":
+      return { ...state, hausbauBudget: action.payload };
+    case "ADD_HAUSBAU_EXPENSE": {
+      const exists = state.hausbauExpenses.some((e) => e.id === action.payload.id);
+      return {
+        ...state,
+        hausbauExpenses: exists
+          ? state.hausbauExpenses.map((e) => (e.id === action.payload.id ? action.payload : e))
+          : [...state.hausbauExpenses, action.payload],
+      };
+    }
+    case "UPDATE_HAUSBAU_EXPENSE":
+      return {
+        ...state,
+        hausbauExpenses: state.hausbauExpenses.map((e) => (e.id === action.payload.id ? action.payload : e)),
+      };
+    case "DELETE_HAUSBAU_EXPENSE":
+      return { ...state, hausbauExpenses: state.hausbauExpenses.filter((e) => e.id !== action.payload.id) };
+    case "ADD_HAUSBAU_SELF_WORK": {
+      const exists = state.hausbauSelfWork.some((e) => e.id === action.payload.id);
+      return {
+        ...state,
+        hausbauSelfWork: exists
+          ? state.hausbauSelfWork.map((e) => (e.id === action.payload.id ? action.payload : e))
+          : [...state.hausbauSelfWork, action.payload],
+      };
+    }
+    case "UPDATE_HAUSBAU_SELF_WORK":
+      return {
+        ...state,
+        hausbauSelfWork: state.hausbauSelfWork.map((e) => (e.id === action.payload.id ? action.payload : e)),
+      };
+    case "DELETE_HAUSBAU_SELF_WORK":
+      return { ...state, hausbauSelfWork: state.hausbauSelfWork.filter((e) => e.id !== action.payload.id) };
     default:
       return state;
   }
@@ -327,6 +396,42 @@ interface AppStoreValue extends AppState {
   restoreFromBackup: (data: AppState) => boolean;
   toasts: Toast[];
   showToast: (message: string, action?: { label: string; onClick: () => void }) => void;
+
+  // --- Hausbau-Kalkulation ---------------------------------------------
+  /** Null until the Grundeinrichtung has been completed once. */
+  hausbauBudget: HausbauBudget | null;
+  hausbauExpenses: HausbauExpense[];
+  hausbauSelfWork: HausbauSelfWork[];
+  /** System categories plus any custom ones, in display order — parallel
+   * to `categories` but a separate domain (construction trades, not event
+   * types). */
+  hausbauCategories: HausbauCategory[];
+  /** Creates the budget row on first setup, or overwrites it on later
+   * edits — both are the same "Grundeinrichtung"/"Budget bearbeiten" form. */
+  saveHausbauBudget: (input: {
+    projectName: string;
+    bankFinancingCents: number;
+    ownReserveCents: number;
+    emergencyReserveCents: number;
+    startDate: string | null;
+  }) => Promise<void>;
+  addHausbauExpense: (input: HausbauExpenseInput) => Promise<HausbauExpense>;
+  updateHausbauExpense: (id: string, input: HausbauExpenseInput) => void;
+  deleteHausbauExpense: (id: string) => void;
+  addHausbauSelfWork: (input: HausbauSelfWorkInput) => Promise<HausbauSelfWork>;
+  updateHausbauSelfWork: (id: string, input: HausbauSelfWorkInput) => void;
+  deleteHausbauSelfWork: (id: string) => void;
+  addHausbauCategory: (input: CategoryInput) => Promise<HausbauCategory>;
+  updateHausbauCategory: (id: string, patch: Partial<CategoryInput>) => Promise<void>;
+  /** "Deaktivieren", not delete — see spec §6; a deactivated category
+   * still renders correctly on any expense/self-work entry that already
+   * references it, it just drops out of the picker for new entries. */
+  deactivateHausbauCategory: (id: string) => Promise<void>;
+  /** Uploads a receipt/photo for a Hausbau expense or self-work entry and
+   * returns its storage path — no-op-unsupported (throws) outside
+   * Supabase mode, since demo mode has nowhere durable to put a file. */
+  uploadHausbauDocument: (file: File) => Promise<string>;
+  getHausbauDocumentUrl: (path: string) => Promise<string>;
 }
 
 const AppStoreContext = createContext<AppStoreValue | null>(null);
@@ -386,6 +491,7 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
   // never marks it read for Elisabeth.
   const [readsByProfile, setReadsByProfile] = useState<Record<string, PersonId[]>>({});
   const [categories, setCategories] = useState<CategoryDef[]>(SYSTEM_CATEGORIES);
+  const [hausbauCategories, setHausbauCategories] = useState<HausbauCategory[]>(SYSTEM_HAUSBAU_CATEGORIES);
   const [ready, setReady] = useState(false);
   const { toasts, showToast } = useToasts();
 
@@ -408,6 +514,11 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
       if (rawCategories) {
         const custom = JSON.parse(rawCategories) as CategoryDef[];
         setCategories([...SYSTEM_CATEGORIES, ...custom]);
+      }
+      const rawHausbauCategories = window.localStorage.getItem(HAUSBAU_CATEGORIES_KEY);
+      if (rawHausbauCategories) {
+        const custom = JSON.parse(rawHausbauCategories) as HausbauCategory[];
+        setHausbauCategories([...SYSTEM_HAUSBAU_CATEGORIES, ...custom]);
       }
     } catch {
       // Corrupt or blocked storage: fall back silently to the seeded demo state.
@@ -451,6 +562,18 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
       // ignore
     }
   }, [ready, categories]);
+
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      window.localStorage.setItem(
+        HAUSBAU_CATEGORIES_KEY,
+        JSON.stringify(hausbauCategories.filter((c) => !c.isSystem)),
+      );
+    } catch {
+      // ignore
+    }
+  }, [ready, hausbauCategories]);
 
   const activeProfile = preferences.activeProfile;
   const unreadNotifications = useMemo(
@@ -691,8 +814,189 @@ function DemoAppStoreProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: "HYDRATE", payload: data });
         return true;
       },
+      hausbauCategories,
+      saveHausbauBudget: (input) => {
+        const budget: HausbauBudget = {
+          projectName: input.projectName,
+          bankFinancingCents: input.bankFinancingCents,
+          ownReserveCents: input.ownReserveCents,
+          emergencyReserveCents: input.emergencyReserveCents,
+          currency: "EUR",
+          startDate: input.startDate,
+          createdBy: state.hausbauBudget?.createdBy ?? activeProfile,
+          updatedAt: now(),
+        };
+        dispatch({ type: "SET_HAUSBAU_BUDGET", payload: budget });
+        return Promise.resolve();
+      },
+      addHausbauExpense: (input) => {
+        const created: HausbauExpense = {
+          id: uuid(),
+          title: input.title,
+          categoryId: input.categoryId,
+          plannedAmountCents: input.status === "planned" ? input.amountCents : null,
+          actualAmountCents: input.status === "planned" ? null : input.amountCents,
+          paymentSource: input.paymentSource,
+          status: input.status,
+          invoiceDate: input.invoiceDate,
+          dueDate: input.dueDate,
+          vendor: input.vendor,
+          invoiceNumber: input.invoiceNumber,
+          notes: input.notes,
+          receiptPath: input.receiptPath,
+          linkedEventId: input.linkedEventId,
+          createdBy: activeProfile,
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        dispatch({ type: "ADD_HAUSBAU_EXPENSE", payload: created });
+        dispatch({
+          type: "ADD_ACTIVITY",
+          payload: { id: uuid(), actorId: activeProfile, message: hausbauExpenseAddedMessage(created.title), createdAt: now() },
+        });
+        return Promise.resolve(created);
+      },
+      updateHausbauExpense: (id, input) => {
+        const existing = state.hausbauExpenses.find((e) => e.id === id);
+        if (!existing) return;
+        dispatch({
+          type: "UPDATE_HAUSBAU_EXPENSE",
+          payload: {
+            ...existing,
+            title: input.title,
+            categoryId: input.categoryId,
+            plannedAmountCents:
+              input.status === "planned" ? input.amountCents : existing.plannedAmountCents,
+            actualAmountCents: input.status === "planned" ? existing.actualAmountCents : input.amountCents,
+            paymentSource: input.paymentSource,
+            status: input.status,
+            invoiceDate: input.invoiceDate,
+            dueDate: input.dueDate,
+            vendor: input.vendor,
+            invoiceNumber: input.invoiceNumber,
+            notes: input.notes,
+            receiptPath: input.receiptPath,
+            linkedEventId: input.linkedEventId,
+            updatedAt: now(),
+          },
+        });
+      },
+      deleteHausbauExpense: (id) => {
+        const existing = state.hausbauExpenses.find((e) => e.id === id);
+        dispatch({ type: "DELETE_HAUSBAU_EXPENSE", payload: { id } });
+        if (existing) {
+          dispatch({
+            type: "ADD_ACTIVITY",
+            payload: {
+              id: uuid(),
+              actorId: activeProfile,
+              message: hausbauExpenseDeletedMessage(existing.title),
+              createdAt: now(),
+            },
+          });
+        }
+      },
+      addHausbauSelfWork: (input) => {
+        const created: HausbauSelfWork = {
+          id: uuid(),
+          title: input.title,
+          categoryId: input.categoryId,
+          estimatedCompanyCostCents: input.estimatedCompanyCostCents,
+          actualMaterialCostCents: input.actualMaterialCostCents,
+          additionalExternalCostCents: input.additionalExternalCostCents,
+          hours: input.hours,
+          hourlyRateCents: input.hourlyRateCents,
+          paymentSource: input.paymentSource,
+          workDate: input.workDate,
+          notes: input.notes,
+          documentPaths: input.documentPaths,
+          createdBy: activeProfile,
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        dispatch({ type: "ADD_HAUSBAU_SELF_WORK", payload: created });
+        dispatch({
+          type: "ADD_ACTIVITY",
+          payload: {
+            id: uuid(),
+            actorId: activeProfile,
+            message: hausbauSelfWorkAddedMessage(created.title),
+            createdAt: now(),
+          },
+        });
+        return Promise.resolve(created);
+      },
+      updateHausbauSelfWork: (id, input) => {
+        const existing = state.hausbauSelfWork.find((e) => e.id === id);
+        if (!existing) return;
+        dispatch({
+          type: "UPDATE_HAUSBAU_SELF_WORK",
+          payload: { ...existing, ...input, updatedAt: now() },
+        });
+      },
+      deleteHausbauSelfWork: (id) => dispatch({ type: "DELETE_HAUSBAU_SELF_WORK", payload: { id } }),
+      addHausbauCategory: (input) => {
+        const error = validateCategoryName(input.label, hausbauCategories.map((c) => c.label));
+        if (error) return Promise.reject(new Error(error));
+        const key = slugifyCategoryKey(
+          input.label,
+          hausbauCategories.map((c) => c.key),
+        );
+        const created: HausbauCategory = {
+          id: uuid(),
+          key,
+          label: input.label.trim(),
+          icon: input.icon,
+          color: input.color,
+          isSystem: false,
+          isActive: true,
+        };
+        setHausbauCategories((prev) => [...prev, created]);
+        return Promise.resolve(created);
+      },
+      updateHausbauCategory: (id, patch) => {
+        const existing = hausbauCategories.find((c) => c.id === id);
+        if (!existing) return Promise.reject(new Error("Kategorie nicht gefunden."));
+        if (existing.isSystem) return Promise.reject(new Error("Diese Kategorie kann nicht geändert werden."));
+        if (patch.label !== undefined) {
+          const error = validateCategoryName(
+            patch.label,
+            hausbauCategories.filter((c) => c.id !== id).map((c) => c.label),
+          );
+          if (error) return Promise.reject(new Error(error));
+        }
+        setHausbauCategories((prev) =>
+          prev.map((c) =>
+            c.id === id
+              ? { ...c, label: patch.label?.trim() ?? c.label, icon: patch.icon ?? c.icon, color: patch.color ?? c.color }
+              : c,
+          ),
+        );
+        return Promise.resolve();
+      },
+      deactivateHausbauCategory: (id) => {
+        const existing = hausbauCategories.find((c) => c.id === id);
+        if (!existing) return Promise.reject(new Error("Kategorie nicht gefunden."));
+        if (existing.isSystem) return Promise.reject(new Error("Diese Kategorie kann nicht deaktiviert werden."));
+        setHausbauCategories((prev) => prev.map((c) => (c.id === id ? { ...c, isActive: false } : c)));
+        return Promise.resolve();
+      },
+      uploadHausbauDocument: () =>
+        Promise.reject(new Error("Belege können nur mit einem echten Konto hochgeladen werden.")),
+      getHausbauDocumentUrl: () =>
+        Promise.reject(new Error("Belege können nur mit einem echten Konto angesehen werden.")),
     };
-  }, [state, unreadNotifications, categories, activeProfile, ready, preferences, toasts, showToast]);
+  }, [
+    state,
+    unreadNotifications,
+    categories,
+    hausbauCategories,
+    activeProfile,
+    ready,
+    preferences,
+    toasts,
+    showToast,
+  ]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }
@@ -709,6 +1013,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
   const { ready: authReady, session, profile, personId } = useSupabaseAuth();
   const [state, dispatch] = useReducer(reducer, EMPTY_STATE);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [hausbauCategories, setHausbauCategories] = useState<HausbauCategory[]>([]);
   const [dataReady, setDataReady] = useState(false);
   const [userPrefs, setUserPrefs] = useState<{
     reducedMotionOverride: boolean | null;
@@ -726,6 +1031,7 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
   const { toasts, showToast } = useToasts();
   const stateRef = useRef(state);
   const categoriesRef = useRef(categories);
+  const hausbauCategoriesRef = useRef(hausbauCategories);
   // The family's two profile rows (uuid <-> personId), needed to resolve
   // Realtime payloads for notes/activity_log — both store a raw profile
   // uuid, unlike events/tasks which already store "domenico"/"elisabeth"
@@ -737,6 +1043,9 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     categoriesRef.current = categories;
   }, [categories]);
+  useEffect(() => {
+    hausbauCategoriesRef.current = hausbauCategories;
+  }, [hausbauCategories]);
 
   const familyId = profile?.familyId ?? null;
 
@@ -765,9 +1074,23 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
             notifications: data.notifications,
             notes: data.notes,
             activity: data.activity,
+            hausbauBudget: null,
+            hausbauExpenses: [],
+            hausbauSelfWork: [],
           },
         });
         setDataReady(true);
+        // Separate fetch (not part of the Promise.all above) so a slow or
+        // failed Hausbau load never blocks the rest of the app from
+        // becoming ready — profiles are already known by now, so
+        // created_by resolves correctly on the very first render.
+        repo.fetchHausbauData(familyId, data.profiles).then((hb) => {
+          if (cancelled) return;
+          setHausbauCategories(hb.categories);
+          if (hb.budget) dispatch({ type: "SET_HAUSBAU_BUDGET", payload: hb.budget });
+          for (const expense of hb.expenses) dispatch({ type: "ADD_HAUSBAU_EXPENSE", payload: expense });
+          for (const entry of hb.selfWork) dispatch({ type: "ADD_HAUSBAU_SELF_WORK", payload: entry });
+        });
       },
       () => setDataReady(true),
     );
@@ -965,6 +1288,59 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         (payload) => {
           const entry = repo.rowToActivity(payload.new as Record<string, unknown>, profilesRef.current);
           dispatch({ type: "ADD_ACTIVITY", payload: entry });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hausbau_budgets", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") return;
+          dispatch({
+            type: "SET_HAUSBAU_BUDGET",
+            payload: repo.rowToHausbauBudget(payload.new as Record<string, unknown>, profilesRef.current),
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hausbau_categories", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const id = (payload.old as { id: string }).id;
+            setHausbauCategories((prev) => prev.filter((c) => c.id !== id));
+          } else {
+            const row = repo.rowToHausbauCategory(payload.new as Record<string, unknown>);
+            setHausbauCategories((prev) =>
+              prev.some((c) => c.id === row.id) ? prev.map((c) => (c.id === row.id ? row : c)) : [...prev, row],
+            );
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hausbau_expenses", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            dispatch({ type: "DELETE_HAUSBAU_EXPENSE", payload: { id: (payload.old as { id: string }).id } });
+          } else {
+            const row = repo.rowToHausbauExpense(payload.new as Record<string, unknown>, profilesRef.current);
+            dispatch({ type: payload.eventType === "INSERT" ? "ADD_HAUSBAU_EXPENSE" : "UPDATE_HAUSBAU_EXPENSE", payload: row });
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hausbau_self_work", filter: `family_id=eq.${familyId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            dispatch({ type: "DELETE_HAUSBAU_SELF_WORK", payload: { id: (payload.old as { id: string }).id } });
+          } else {
+            const row = repo.rowToHausbauSelfWork(payload.new as Record<string, unknown>, profilesRef.current);
+            dispatch({
+              type: payload.eventType === "INSERT" ? "ADD_HAUSBAU_SELF_WORK" : "UPDATE_HAUSBAU_SELF_WORK",
+              payload: row,
+            });
+          }
         },
       )
       .subscribe();
@@ -1256,8 +1632,141 @@ function SupabaseAppStoreProvider({ children }: { children: React.ReactNode }) {
         void repo.deleteNoteRow(id);
       },
       restoreFromBackup: () => false,
+      hausbauCategories,
+      saveHausbauBudget: (input) => {
+        const { familyId, profileId } = requireFamily();
+        return repo
+          .upsertHausbauBudgetRow(familyId, profileId, input, profilesRef.current)
+          .then((budget) => {
+            dispatch({ type: "SET_HAUSBAU_BUDGET", payload: budget });
+          });
+      },
+      addHausbauExpense: (input) => {
+        const { familyId, profileId } = requireFamily();
+        return repo.insertHausbauExpenseRow(familyId, profileId, input, profilesRef.current).then((row) => {
+          dispatch({ type: "ADD_HAUSBAU_EXPENSE", payload: row });
+          void repo.logActivity(familyId, profileId, hausbauExpenseAddedMessage(row.title));
+          return row;
+        });
+      },
+      updateHausbauExpense: (id, input) => {
+        const existing = stateRef.current.hausbauExpenses.find((e) => e.id === id);
+        if (!existing) return;
+        dispatch({
+          type: "UPDATE_HAUSBAU_EXPENSE",
+          payload: {
+            ...existing,
+            title: input.title,
+            categoryId: input.categoryId,
+            plannedAmountCents: input.status === "planned" ? input.amountCents : existing.plannedAmountCents,
+            actualAmountCents: input.status === "planned" ? existing.actualAmountCents : input.amountCents,
+            paymentSource: input.paymentSource,
+            status: input.status,
+            invoiceDate: input.invoiceDate,
+            dueDate: input.dueDate,
+            vendor: input.vendor,
+            invoiceNumber: input.invoiceNumber,
+            notes: input.notes,
+            receiptPath: input.receiptPath,
+            linkedEventId: input.linkedEventId,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+        void repo.updateHausbauExpenseRow(id, input);
+      },
+      deleteHausbauExpense: (id) => {
+        const existing = stateRef.current.hausbauExpenses.find((e) => e.id === id);
+        dispatch({ type: "DELETE_HAUSBAU_EXPENSE", payload: { id } });
+        void repo.deleteHausbauExpenseRow(id).then(() => {
+          if (existing && familyId) {
+            void repo.logActivity(familyId, profile?.id ?? null, hausbauExpenseDeletedMessage(existing.title));
+          }
+        });
+      },
+      addHausbauSelfWork: (input) => {
+        const { familyId, profileId } = requireFamily();
+        return repo.insertHausbauSelfWorkRow(familyId, profileId, input, profilesRef.current).then((row) => {
+          dispatch({ type: "ADD_HAUSBAU_SELF_WORK", payload: row });
+          void repo.logActivity(familyId, profileId, hausbauSelfWorkAddedMessage(row.title));
+          return row;
+        });
+      },
+      updateHausbauSelfWork: (id, input) => {
+        const existing = stateRef.current.hausbauSelfWork.find((e) => e.id === id);
+        if (!existing) return;
+        dispatch({
+          type: "UPDATE_HAUSBAU_SELF_WORK",
+          payload: { ...existing, ...input, updatedAt: new Date().toISOString() },
+        });
+        void repo.updateHausbauSelfWorkRow(id, input);
+      },
+      deleteHausbauSelfWork: (id) => {
+        dispatch({ type: "DELETE_HAUSBAU_SELF_WORK", payload: { id } });
+        void repo.deleteHausbauSelfWorkRow(id);
+      },
+      addHausbauCategory: (input) => {
+        const { familyId, profileId } = requireFamily();
+        const error = validateCategoryName(input.label, hausbauCategoriesRef.current.map((c) => c.label));
+        if (error) return Promise.reject(new Error(error));
+        return repo
+          .insertHausbauCategoryRow(
+            familyId,
+            profileId,
+            hausbauCategoriesRef.current.map((c) => c.key),
+            input,
+          )
+          .then((row) => {
+            setHausbauCategories((prev) => [...prev, row]);
+            return row;
+          });
+      },
+      updateHausbauCategory: (id, patch) => {
+        const existing = hausbauCategoriesRef.current.find((c) => c.id === id);
+        if (!existing) return Promise.reject(new Error("Kategorie nicht gefunden."));
+        if (existing.isSystem) return Promise.reject(new Error("Diese Kategorie kann nicht geändert werden."));
+        if (patch.label !== undefined) {
+          const error = validateCategoryName(
+            patch.label,
+            hausbauCategoriesRef.current.filter((c) => c.id !== id).map((c) => c.label),
+          );
+          if (error) return Promise.reject(new Error(error));
+        }
+        setHausbauCategories((prev) =>
+          prev.map((c) =>
+            c.id === id
+              ? { ...c, label: patch.label?.trim() ?? c.label, icon: patch.icon ?? c.icon, color: patch.color ?? c.color }
+              : c,
+          ),
+        );
+        return repo.updateHausbauCategoryRow(id, patch);
+      },
+      deactivateHausbauCategory: (id) => {
+        const existing = hausbauCategoriesRef.current.find((c) => c.id === id);
+        if (!existing) return Promise.reject(new Error("Kategorie nicht gefunden."));
+        if (existing.isSystem) return Promise.reject(new Error("Diese Kategorie kann nicht deaktiviert werden."));
+        setHausbauCategories((prev) => prev.map((c) => (c.id === id ? { ...c, isActive: false } : c)));
+        return repo.updateHausbauCategoryRow(id, { isActive: false });
+      },
+      uploadHausbauDocument: (file) => {
+        const { familyId } = requireFamily();
+        return repo.uploadHausbauDocument(familyId, file);
+      },
+      getHausbauDocumentUrl: (path) => repo.getHausbauDocumentSignedUrl(path),
     };
-  }, [state, categories, authReady, session, dataReady, personId, userPrefs, toasts, showToast, familyId, profile]);
+  }, [
+    state,
+    categories,
+    hausbauCategories,
+    authReady,
+    session,
+    dataReady,
+    personId,
+    userPrefs,
+    toasts,
+    showToast,
+    familyId,
+    profile,
+  ]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }

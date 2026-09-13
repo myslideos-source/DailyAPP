@@ -53,6 +53,41 @@ export const CATEGORY_ICON_CHOICES: string[] = [
   "Leaf",
 ];
 
+// A construction-trade-flavored icon set for Hausbau categories — kept
+// separate from CATEGORY_ICON_CHOICES above (event categories) since the
+// two domains want visually different icon vocabularies, even though they
+// share the same validate/slugify rules below.
+export const HAUSBAU_CATEGORY_ICON_CHOICES: string[] = [
+  "Hammer",
+  "HardHat",
+  "Wrench",
+  "FileText",
+  "Palette",
+  "Layers",
+  "Shovel",
+  "Truck",
+  "Box",
+  "Waves",
+  "Plug",
+  "Zap",
+  "Network",
+  "Droplet",
+  "Flame",
+  "Wind",
+  "Sun",
+  "SquareStack",
+  "LayoutGrid",
+  "PaintRoller",
+  "ChefHat",
+  "Car",
+  "Trees",
+  "Receipt",
+  "Wallet",
+  "Banknote",
+  "Ruler",
+  "CircleDot",
+];
+
 export function validateCategoryName(name: string, existingLabels: string[]): string | null {
   const trimmed = name.trim();
   if (!trimmed) return "Bitte gib einen Namen ein.";

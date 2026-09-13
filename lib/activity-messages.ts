@@ -42,3 +42,15 @@ export function savingsGoalCreatedMessage(title: string): string {
 export function savingsEntryAddedMessage(amount: number, goalTitle: string): string {
   return `${amount} € zu „${goalTitle}“ hinzugefügt`;
 }
+
+export function hausbauExpenseAddedMessage(title: string): string {
+  return `Hausbau-Ausgabe „${title}“ hinzugefügt`;
+}
+
+export function hausbauExpenseDeletedMessage(title: string): string {
+  return `Hausbau-Ausgabe „${title}“ gelöscht`;
+}
+
+export function hausbauSelfWorkAddedMessage(title: string): string {
+  return `Eigenleistung „${title}“ erfasst`;
+}

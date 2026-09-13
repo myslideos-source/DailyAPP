@@ -15,6 +15,13 @@ import { NewEventSheet } from "@/components/sheets/NewEventSheet";
 import { FreeTimeSheet } from "@/components/sheets/FreeTimeSheet";
 import { NoteEditorSheet } from "@/components/sheets/NoteEditorSheet";
 import { DailyBriefingCard } from "@/components/today/DailyBriefingCard";
+import { HausbauOverviewSheet } from "@/components/hausbau/HausbauOverviewSheet";
+import { HausbauBudgetFormSheet } from "@/components/hausbau/HausbauBudgetFormSheet";
+import { HausbauExpenseDetailSheet } from "@/components/hausbau/HausbauExpenseDetailSheet";
+import { HausbauExpenseFormSheet } from "@/components/hausbau/HausbauExpenseFormSheet";
+import { HausbauSelfWorkDetailSheet } from "@/components/hausbau/HausbauSelfWorkDetailSheet";
+import { HausbauSelfWorkFormSheet } from "@/components/hausbau/HausbauSelfWorkFormSheet";
+import { HausbauCategoryManagerSheet } from "@/components/hausbau/HausbauCategoryManagerSheet";
 import { ReminderScheduler } from "@/components/pwa/ReminderScheduler";
 import { SheetProvider, useSheet } from "@/lib/store/sheet-context";
 import { SavePulseProvider } from "@/lib/store/save-pulse-context";
@@ -70,6 +77,29 @@ function SheetRenderer() {
       <TaskFormSheet open={sheet?.kind === "shopping"} onClose={close} kind="shopping" />
       <FreeTimeSheet open={sheet?.kind === "freeTime"} onClose={close} />
       <NoteEditorSheet open={sheet?.kind === "noteEditor"} onClose={close} noteId={noteId} />
+      <HausbauOverviewSheet open={sheet?.kind === "hausbauOverview"} onClose={close} />
+      <HausbauBudgetFormSheet open={sheet?.kind === "hausbauBudget"} onClose={close} />
+      <HausbauExpenseDetailSheet
+        open={sheet?.kind === "hausbauExpenseDetail"}
+        onClose={close}
+        expenseId={sheet?.kind === "hausbauExpenseDetail" ? sheet.expenseId : null}
+      />
+      <HausbauExpenseFormSheet
+        open={sheet?.kind === "hausbauExpenseEdit"}
+        onClose={close}
+        expenseId={sheet?.kind === "hausbauExpenseEdit" ? sheet.expenseId : undefined}
+      />
+      <HausbauSelfWorkDetailSheet
+        open={sheet?.kind === "hausbauSelfWorkDetail"}
+        onClose={close}
+        selfWorkId={sheet?.kind === "hausbauSelfWorkDetail" ? sheet.selfWorkId : null}
+      />
+      <HausbauSelfWorkFormSheet
+        open={sheet?.kind === "hausbauSelfWorkEdit"}
+        onClose={close}
+        selfWorkId={sheet?.kind === "hausbauSelfWorkEdit" ? sheet.selfWorkId : undefined}
+      />
+      <HausbauCategoryManagerSheet open={sheet?.kind === "hausbauCategoryManager"} onClose={close} />
     </>
   );
 }

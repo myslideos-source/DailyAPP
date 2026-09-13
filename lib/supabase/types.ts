@@ -313,6 +313,291 @@ export type Database = {
           },
         ]
       }
+      hausbau_budgets: {
+        Row: {
+          bank_financing_cents: number
+          created_at: string
+          created_by: string | null
+          currency: string
+          emergency_reserve_cents: number
+          family_id: string
+          own_reserve_cents: number
+          project_name: string
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          bank_financing_cents?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          emergency_reserve_cents?: number
+          family_id: string
+          own_reserve_cents?: number
+          project_name?: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bank_financing_cents?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          emergency_reserve_cents?: number
+          family_id?: string
+          own_reserve_cents?: number
+          project_name?: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hausbau_budgets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hausbau_budgets_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: true
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hausbau_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          created_by: string | null
+          family_id: string
+          icon: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          family_id: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key: string
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          family_id?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hausbau_categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hausbau_categories_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hausbau_expenses: {
+        Row: {
+          actual_amount_cents: number | null
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          family_id: string
+          id: string
+          invoice_date: string | null
+          invoice_number: string | null
+          linked_event_id: string | null
+          notes: string | null
+          payment_source: Database["public"]["Enums"]["hausbau_payment_source"]
+          planned_amount_cents: number | null
+          receipt_path: string | null
+          status: Database["public"]["Enums"]["hausbau_expense_status"]
+          title: string
+          updated_at: string
+          vendor: string | null
+        }
+        Insert: {
+          actual_amount_cents?: number | null
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          family_id: string
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          linked_event_id?: string | null
+          notes?: string | null
+          payment_source: Database["public"]["Enums"]["hausbau_payment_source"]
+          planned_amount_cents?: number | null
+          receipt_path?: string | null
+          status?: Database["public"]["Enums"]["hausbau_expense_status"]
+          title: string
+          updated_at?: string
+          vendor?: string | null
+        }
+        Update: {
+          actual_amount_cents?: number | null
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          family_id?: string
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          linked_event_id?: string | null
+          notes?: string | null
+          payment_source?: Database["public"]["Enums"]["hausbau_payment_source"]
+          planned_amount_cents?: number | null
+          receipt_path?: string | null
+          status?: Database["public"]["Enums"]["hausbau_expense_status"]
+          title?: string
+          updated_at?: string
+          vendor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hausbau_expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "hausbau_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hausbau_expenses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hausbau_expenses_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hausbau_expenses_linked_event_id_fkey"
+            columns: ["linked_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hausbau_self_work: {
+        Row: {
+          actual_material_cost_cents: number
+          additional_external_cost_cents: number
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          document_paths: string[]
+          estimated_company_cost_cents: number
+          family_id: string
+          hourly_rate_cents: number | null
+          hours: number | null
+          id: string
+          notes: string | null
+          payment_source: Database["public"]["Enums"]["hausbau_payment_source"]
+          title: string
+          updated_at: string
+          work_date: string | null
+        }
+        Insert: {
+          actual_material_cost_cents?: number
+          additional_external_cost_cents?: number
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_paths?: string[]
+          estimated_company_cost_cents?: number
+          family_id: string
+          hourly_rate_cents?: number | null
+          hours?: number | null
+          id?: string
+          notes?: string | null
+          payment_source?: Database["public"]["Enums"]["hausbau_payment_source"]
+          title: string
+          updated_at?: string
+          work_date?: string | null
+        }
+        Update: {
+          actual_material_cost_cents?: number
+          additional_external_cost_cents?: number
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_paths?: string[]
+          estimated_company_cost_cents?: number
+          family_id?: string
+          hourly_rate_cents?: number | null
+          hours?: number | null
+          id?: string
+          notes?: string | null
+          payment_source?: Database["public"]["Enums"]["hausbau_payment_source"]
+          title?: string
+          updated_at?: string
+          work_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hausbau_self_work_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "hausbau_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hausbau_self_work_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hausbau_self_work_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           body: string
@@ -937,9 +1222,14 @@ export type Database = {
         Args: { target_family_id: string }
         Returns: undefined
       }
+      seed_default_hausbau_categories: {
+        Args: { target_family_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      hausbau_expense_status: "planned" | "ordered" | "invoiced" | "paid"
+      hausbau_payment_source: "bank" | "self"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1066,6 +1356,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      hausbau_expense_status: ["planned", "ordered", "invoiced", "paid"],
+      hausbau_payment_source: ["bank", "self"],
+    },
   },
 } as const

@@ -445,12 +445,188 @@ function seedSavingsEntries(): SavingsEntry[] {
   ];
 }
 
+// Demo-mode Hausbau categories mirror seed_default_hausbau_categories() in
+// supabase/migrations/20250101001600_hausbau_kalkulation.sql — kept in sync
+// by hand since demo mode has no database to seed from.
+export const HAUSBAU_CATEGORIES: { id: string; label: string; icon: string }[] = [
+  { id: "hausvertrag", label: "Hausvertrag", icon: "FileText" },
+  { id: "bemusterung", label: "Bemusterung", icon: "Palette" },
+  { id: "bodenplatte", label: "Bodenplatte", icon: "Layers" },
+  { id: "tiefbau", label: "Tiefbau", icon: "Shovel" },
+  { id: "schotter", label: "Schotter", icon: "Truck" },
+  { id: "zisterne", label: "Zisterne", icon: "Box" },
+  { id: "entwaesserung", label: "Entwässerung und Schächte", icon: "Waves" },
+  { id: "hausanschluss", label: "Hausanschlüsse", icon: "Plug" },
+  { id: "elektro", label: "Elektro", icon: "Zap" },
+  { id: "smarthome", label: "Smart Home", icon: "Network" },
+  { id: "sanitaer", label: "Sanitär", icon: "Droplet" },
+  { id: "heizung", label: "Heizung", icon: "Flame" },
+  { id: "lueftung", label: "Lüftung", icon: "Wind" },
+  { id: "photovoltaik", label: "Photovoltaik", icon: "Sun" },
+  { id: "trockenbau", label: "Trockenbau", icon: "SquareStack" },
+  { id: "bodenbelaege", label: "Bodenbeläge", icon: "LayoutGrid" },
+  { id: "malerarbeiten", label: "Malerarbeiten", icon: "PaintRoller" },
+  { id: "kueche", label: "Küche", icon: "ChefHat" },
+  { id: "garage", label: "Garage", icon: "Car" },
+  { id: "aussenanlage", label: "Außenanlage", icon: "Trees" },
+  { id: "werkzeuge", label: "Werkzeuge", icon: "Wrench" },
+  { id: "gebuehren", label: "Gebühren", icon: "Receipt" },
+  { id: "sonstiges", label: "Sonstiges", icon: "CircleDot" },
+];
+
+function seedHausbauBudget() {
+  return {
+    projectName: "Unser Hausbau",
+    bankFinancingCents: 30_000_000,
+    ownReserveCents: 3_000_000,
+    emergencyReserveCents: 500_000,
+    currency: "EUR",
+    startDate: iso(subDays(new Date(), 120)),
+    createdBy: "domenico" as const,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function seedHausbauExpenses() {
+  const today = new Date();
+  const t = (offset: number) => iso(subDays(today, offset));
+  // Distinct per-entry timestamps (not a shared "now") so "Letzte Ausgabe"
+  // on the home tile picks the narratively most recent entry (Küche) by
+  // actual createdAt ordering, not by array position on a tie.
+  const tIso = (offset: number) => subDays(today, offset).toISOString();
+  return [
+    {
+      id: "hb-exp-hausvertrag",
+      title: "Hausvertrag",
+      categoryId: "hausvertrag",
+      plannedAmountCents: null,
+      actualAmountCents: 18_000_000,
+      paymentSource: "bank" as const,
+      status: "paid" as const,
+      invoiceDate: t(110),
+      dueDate: null,
+      vendor: "Musterhaus GmbH",
+      invoiceNumber: "RG-2026-0142",
+      notes: null,
+      receiptPath: null,
+      linkedEventId: null,
+      createdBy: "domenico" as const,
+      createdAt: tIso(110),
+      updatedAt: tIso(110),
+    },
+    {
+      id: "hb-exp-bodenplatte",
+      title: "Bodenplatte",
+      categoryId: "bodenplatte",
+      plannedAmountCents: null,
+      actualAmountCents: 4_200_000,
+      paymentSource: "bank" as const,
+      status: "paid" as const,
+      invoiceDate: t(60),
+      dueDate: null,
+      vendor: "Beton Schmidt",
+      invoiceNumber: "RG-2026-0311",
+      notes: null,
+      receiptPath: null,
+      linkedEventId: null,
+      createdBy: "domenico" as const,
+      createdAt: tIso(60),
+      updatedAt: tIso(60),
+    },
+    {
+      id: "hb-exp-heizung",
+      title: "Heizungsanlage",
+      categoryId: "heizung",
+      plannedAmountCents: null,
+      actualAmountCents: 1_500_000,
+      paymentSource: "bank" as const,
+      status: "ordered" as const,
+      invoiceDate: t(5),
+      dueDate: t(-25),
+      vendor: "Viessmann Fachbetrieb",
+      invoiceNumber: null,
+      notes: "Wärmepumpe, Lieferung in 4 Wochen.",
+      receiptPath: null,
+      linkedEventId: null,
+      createdBy: "elisabeth" as const,
+      createdAt: tIso(5),
+      updatedAt: tIso(5),
+    },
+    {
+      id: "hb-exp-zisterne",
+      title: "Zisterne",
+      categoryId: "zisterne",
+      plannedAmountCents: null,
+      actualAmountCents: 160_000,
+      paymentSource: "self" as const,
+      status: "paid" as const,
+      invoiceDate: t(2),
+      dueDate: null,
+      vendor: "Graf Zisternen",
+      invoiceNumber: "RG-9981",
+      notes: null,
+      receiptPath: null,
+      linkedEventId: null,
+      createdBy: "domenico" as const,
+      createdAt: tIso(2),
+      updatedAt: tIso(2),
+    },
+    {
+      id: "hb-exp-kueche",
+      title: "Küche",
+      categoryId: "kueche",
+      plannedAmountCents: 1_800_000,
+      actualAmountCents: null,
+      paymentSource: "self" as const,
+      status: "planned" as const,
+      invoiceDate: null,
+      dueDate: null,
+      vendor: null,
+      invoiceNumber: null,
+      notes: "Angebot von Küche Aktuell abwarten.",
+      receiptPath: null,
+      linkedEventId: null,
+      createdBy: "elisabeth" as const,
+      createdAt: tIso(1),
+      updatedAt: tIso(1),
+    },
+  ];
+}
+
+function seedHausbauSelfWork() {
+  const today = new Date();
+  const t = (offset: number) => iso(subDays(today, offset));
+  const now = new Date().toISOString();
+  return [
+    {
+      id: "hb-sw-trockenbau",
+      title: "Trockenbau Dachgeschoss",
+      categoryId: "trockenbau",
+      estimatedCompanyCostCents: 800_000,
+      actualMaterialCostCents: 300_000,
+      additionalExternalCostCents: 50_000,
+      hours: 64,
+      hourlyRateCents: null,
+      paymentSource: "self" as const,
+      workDate: t(20),
+      notes: "Mit Papa und Schwager an zwei Wochenenden.",
+      documentPaths: [],
+      createdBy: "domenico" as const,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+}
+
 export function createDemoDataset() {
   return {
     events: seedEvents(),
     tasks: seedTasks(),
     savingsGoals: seedSavingsGoals(),
     savingsEntries: seedSavingsEntries(),
+    hausbauBudget: seedHausbauBudget(),
+    hausbauExpenses: seedHausbauExpenses(),
+    hausbauSelfWork: seedHausbauSelfWork(),
   };
 }
 

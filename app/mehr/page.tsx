@@ -7,6 +7,7 @@ import {
   ChevronRight,
   DatabaseBackup,
   Download,
+  HardHat,
   History,
   House,
   Lock,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { MenuRow } from "@/components/mehr/MenuRow";
 import { useAppStore } from "@/lib/store/app-store";
+import { useSheet } from "@/lib/store/sheet-context";
 import { PROFILES } from "@/lib/demo-data";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { usePwaInstall } from "@/lib/hooks/usePwaInstall";
@@ -49,6 +51,7 @@ function useLogout() {
 
 export default function MehrPage() {
   const { preferences } = useAppStore();
+  const { openHausbauOverview } = useSheet();
   const { isStandalone } = usePwaInstall();
   const handleLogout = useLogout();
 
@@ -90,6 +93,7 @@ export default function MehrPage() {
         <MenuRow icon={User} label="Profile" description="Domenico & Elisabeth" href="/mehr/profil" />
         <MenuRow icon={BellRing} label="Erinnerungen" description="Termin-Erinnerungen" href="/mehr/erinnerungen" />
         <MenuRow icon={PiggyBank} label="Sparziele" href="/mehr/sparziele" />
+        <MenuRow icon={HardHat} label="Hausbau" description="Budget & Kosten" onClick={openHausbauOverview} />
         <MenuRow icon={NotebookText} label="Notizen" description="Geteilt mit der Familie" href="/mehr/notizen" />
         <MenuRow icon={History} label="Verlauf" description="Wer hat was gemacht" href="/mehr/verlauf" />
         <MenuRow icon={Tags} label="Kategorien" href="/mehr/kategorien" />

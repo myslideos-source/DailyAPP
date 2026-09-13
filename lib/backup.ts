@@ -2,6 +2,9 @@ import type {
   ActivityEntry,
   AppNotification,
   CalendarEvent,
+  HausbauBudget,
+  HausbauExpense,
+  HausbauSelfWork,
   Note,
   SavingsEntry,
   SavingsGoal,
@@ -18,6 +21,9 @@ export interface BackupPayload {
   notifications: AppNotification[];
   notes: Note[];
   activity: ActivityEntry[];
+  hausbauBudget: HausbauBudget | null;
+  hausbauExpenses: HausbauExpense[];
+  hausbauSelfWork: HausbauSelfWork[];
 }
 
 export function serializeBackup(data: Omit<BackupPayload, "version" | "exportedAt">): string {
@@ -60,6 +66,11 @@ export function parseBackup(json: string): BackupPayload {
     notifications: Array.isArray(data.notifications) ? data.notifications : [],
     notes: Array.isArray(data.notes) ? data.notes : [],
     activity: Array.isArray(data.activity) ? data.activity : [],
+    // Older backups predate the Hausbau feature — default to empty rather
+    // than reject, so a pre-existing export still restores cleanly.
+    hausbauBudget: data.hausbauBudget ?? null,
+    hausbauExpenses: Array.isArray(data.hausbauExpenses) ? data.hausbauExpenses : [],
+    hausbauSelfWork: Array.isArray(data.hausbauSelfWork) ? data.hausbauSelfWork : [],
   };
 }
 

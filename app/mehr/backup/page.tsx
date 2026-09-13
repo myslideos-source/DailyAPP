@@ -62,14 +62,37 @@ function AutomaticBackups() {
 }
 
 export default function BackupPage() {
-  const { events, tasks, savingsGoals, savingsEntries, notifications, notes, activity, restoreFromBackup, showToast } =
-    useAppStore();
+  const {
+    events,
+    tasks,
+    savingsGoals,
+    savingsEntries,
+    notifications,
+    notes,
+    activity,
+    hausbauBudget,
+    hausbauExpenses,
+    hausbauSelfWork,
+    restoreFromBackup,
+    showToast,
+  } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<File | null>(null);
 
   function handleExport() {
-    const json = serializeBackup({ events, tasks, savingsGoals, savingsEntries, notifications, notes, activity });
+    const json = serializeBackup({
+      events,
+      tasks,
+      savingsGoals,
+      savingsEntries,
+      notifications,
+      notes,
+      activity,
+      hausbauBudget,
+      hausbauExpenses,
+      hausbauSelfWork,
+    });
     downloadBackup(json);
     showToast("Sicherung heruntergeladen");
   }
