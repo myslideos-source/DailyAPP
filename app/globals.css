@@ -134,11 +134,12 @@ body {
 .pt-safe-header {
   padding-top: calc(var(--dl-safe-top) + 0.75rem);
 }
-/* Keeps content clear of the floating Dayli Dock (~76px tall, 12px above
-   the safe area) plus a little breathing room, so the last event/task/
-   button is always reachable above it. */
+/* The Dayli Dock stays collapsed behind an edge tab by default and only
+   floats over content while open, so this just needs comfortable breathing
+   room above the safe area — not space reserved for a permanently visible
+   ~76px bar. */
 .pb-dock {
-  padding-bottom: calc(112px + var(--dl-safe-bottom));
+  padding-bottom: calc(28px + var(--dl-safe-bottom));
 }
 
 /* Event form: Datum + Ganztägig share one row, bottom-aligned so the
