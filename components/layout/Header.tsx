@@ -4,8 +4,9 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Bell, MoreHorizontal } from "lucide-react";
+import { Bell, MoreHorizontal, Sunrise } from "lucide-react";
 import { useAppStore } from "@/lib/store/app-store";
+import { useSheet } from "@/lib/store/sheet-context";
 import { PersonAvatar } from "@/components/ui/Avatar";
 import { IconButton } from "@/components/ui/IconButton";
 import { LogoAmbientGlow } from "@/components/brand/LogoAmbientGlow";
@@ -17,7 +18,8 @@ function bellBadgeLabel(count: number): string {
 }
 
 export function Header() {
-  const { notifications } = useAppStore();
+  const { notifications, preferences } = useAppStore();
+  const { openDailyBriefing } = useSheet();
   const reducedMotion = useReducedMotion();
   const [popoverOpen, setPopoverOpen] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
@@ -53,6 +55,11 @@ export function Header() {
             <PersonAvatar assignee="domenico" size="sm" />
             <PersonAvatar assignee="elisabeth" size="sm" />
           </div>
+          {preferences.dailyBriefing.enabled && (
+            <IconButton label="Tagesbriefing" onClick={openDailyBriefing}>
+              <Sunrise size={18} strokeWidth={1.8} />
+            </IconButton>
+          )}
           <IconButton
             ref={bellRef}
             label="Benachrichtigungen"

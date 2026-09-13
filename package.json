@@ -9,6 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
     "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.115.0",
     "clsx": "^2.1.1",
@@ -22,6 +25,7 @@
     "uuid": "^14.0.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

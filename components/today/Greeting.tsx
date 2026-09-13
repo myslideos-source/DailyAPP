@@ -1,16 +1,9 @@
 "use client";
 
 import { motion } from "motion/react";
-import { formatLongDate } from "@/lib/date-utils";
+import { formatLongDate, getBerlinParts } from "@/lib/date-utils";
+import { greetingWordForHour } from "@/lib/briefing";
 import { revealVariants } from "@/lib/motion-variants";
-
-function timeGreeting(hour: number) {
-  if (hour < 5) return "Gute Nacht";
-  if (hour < 11) return "Guten Morgen";
-  if (hour < 17) return "Guten Tag";
-  if (hour < 22) return "Guten Abend";
-  return "Gute Nacht";
-}
 
 export function Greeting({
   name,
@@ -30,7 +23,7 @@ export function Greeting({
       className="pt-3"
     >
       <p className="text-[14.5px]" style={{ color: "var(--dl-text-dim)" }}>
-        {timeGreeting(new Date().getHours())}, {name}
+        {greetingWordForHour(getBerlinParts().hour)}, {name}
       </p>
       <h1 className="text-[26px] font-bold leading-tight" style={{ color: "var(--dl-text)" }}>
         {formatLongDate(date)}

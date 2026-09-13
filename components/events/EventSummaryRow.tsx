@@ -6,18 +6,25 @@ import { PersonAvatar } from "@/components/ui/Avatar";
 import { assigneeColor, assigneeLabel, assigneeSoftColor } from "@/lib/theme";
 import { useAppStore } from "@/lib/store/app-store";
 import { useSheet } from "@/lib/store/sheet-context";
+import { fromISODate, relativeDayLabelForRow } from "@/lib/date-utils";
 import type { CalendarEvent } from "@/lib/types";
 
 /** The shared "one event, at a glance" row — colored accent bar, time and
  * title, an assignee pill, avatars, and a chevron into the edit view. Used
  * for the Kalender day-agenda list and the Heute page's upcoming-events
- * lists, so both read as the same app rather than two bespoke layouts. */
-export function EventSummaryRow({ event, index = 0 }: { event: CalendarEvent; index?: number }) {
+ * lists, so both read as the same app rather than two bespoke layouts.
+ *
+ * `showDate` prefixes the time line with a relative day label ("Morgen",
+ * a weekday name, or a full date) — for lists that can span multiple days
+ * (the home page's real "next event" feed, spec §12/§13). Never shown for
+ * a today event, matching "heute: nur Uhrzeit anzeigen". */
+export function EventSummaryRow({ event, index = 0, showDate = false }: { event: CalendarEvent; index?: number; showDate?: boolean }) {
   const { openEventDetail } = useSheet();
   const { tasks } = useAppStore();
   const color = assigneeColor(event.assignee);
   const softColor = assigneeSoftColor(event.assignee);
   const openPrepCount = tasks.filter((t) => t.linkedEventId === event.id && !t.done).length;
+  const dayLabel = showDate ? relativeDayLabelForRow(fromISODate(event.date)) : null;
 
   return (
     <motion.button
@@ -37,6 +44,7 @@ export function EventSummaryRow({ event, index = 0 }: { event: CalendarEvent; in
 
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-semibold" style={{ color }}>
+          {dayLabel && `${dayLabel} · `}
           {event.allDay ? "Ganztägig" : event.startTime}
         </p>
         <p className="truncate text-[15.5px] font-semibold" style={{ color: "var(--dl-text)" }}>

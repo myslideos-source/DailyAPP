@@ -16,6 +16,14 @@ export type ActiveSheet =
   | { kind: "birthday" }
   | { kind: "freeTime" }
   | { kind: "noteEditor"; noteId: string }
+  | { kind: "dailyBriefing" }
+  | { kind: "hausbauOverview" }
+  | { kind: "hausbauBudget" }
+  | { kind: "hausbauExpenseDetail"; expenseId: string }
+  | { kind: "hausbauExpenseEdit"; expenseId?: string }
+  | { kind: "hausbauSelfWorkDetail"; selfWorkId: string }
+  | { kind: "hausbauSelfWorkEdit"; selfWorkId?: string }
+  | { kind: "hausbauCategoryManager" }
   | null;
 
 interface SheetContextValue {
@@ -42,6 +50,14 @@ interface SheetContextValue {
   openQuickAdd: (kind: QuickAddKind) => void;
   openFreeTime: () => void;
   openNoteEditor: (noteId: string) => void;
+  openDailyBriefing: () => void;
+  openHausbauOverview: () => void;
+  openHausbauBudget: () => void;
+  openHausbauExpenseDetail: (expenseId: string) => void;
+  openHausbauExpenseEdit: (expenseId?: string) => void;
+  openHausbauSelfWorkDetail: (selfWorkId: string) => void;
+  openHausbauSelfWorkEdit: (selfWorkId?: string) => void;
+  openHausbauCategoryManager: () => void;
   close: () => void;
 }
 
@@ -62,6 +78,14 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
       openQuickAdd: (kind) => setSheet({ kind }),
       openFreeTime: () => setSheet({ kind: "freeTime" }),
       openNoteEditor: (noteId) => setSheet({ kind: "noteEditor", noteId }),
+      openDailyBriefing: () => setSheet({ kind: "dailyBriefing" }),
+      openHausbauOverview: () => setSheet({ kind: "hausbauOverview" }),
+      openHausbauBudget: () => setSheet({ kind: "hausbauBudget" }),
+      openHausbauExpenseDetail: (expenseId) => setSheet({ kind: "hausbauExpenseDetail", expenseId }),
+      openHausbauExpenseEdit: (expenseId) => setSheet({ kind: "hausbauExpenseEdit", expenseId }),
+      openHausbauSelfWorkDetail: (selfWorkId) => setSheet({ kind: "hausbauSelfWorkDetail", selfWorkId }),
+      openHausbauSelfWorkEdit: (selfWorkId) => setSheet({ kind: "hausbauSelfWorkEdit", selfWorkId }),
+      openHausbauCategoryManager: () => setSheet({ kind: "hausbauCategoryManager" }),
       close: () => setSheet(null),
     }),
     [sheet],

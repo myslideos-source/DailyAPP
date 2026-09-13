@@ -50,6 +50,21 @@ export function relativeDayLabel(date: Date) {
   return format(date, "EEEE", { locale: de });
 }
 
+/** Capitalized label for an event row's date prefix (spec: home page
+ * "Als Nächstes"/"Weitere Termine") — null for today (show only the time,
+ * no date prefix at all), "Morgen" for tomorrow, the weekday name within
+ * the same week, otherwise "d. MMMM". Distinct from `relativeDayLabel`
+ * (which always names a weekday for any future date, no "today = no
+ * label" case) and from the lowercase mid-sentence `relativeDayPhrase`
+ * below. */
+export function relativeDayLabelForRow(date: Date): string | null {
+  if (isToday(date)) return null;
+  if (isTomorrow(date)) return "Morgen";
+  const diff = differenceInCalendarDays(date, new Date());
+  if (diff > 1 && diff < 7) return format(date, "EEEE", { locale: de });
+  return format(date, "d. MMMM", { locale: de });
+}
+
 /** Lowercase, mid-sentence variant of relativeDayLabel — for reminder/
  * notification copy like "Höhenplan bereitlegen (morgen)." */
 export function relativeDayPhrase(date: Date) {
@@ -73,6 +88,41 @@ export function relativeTimeFromNow(iso: string): string {
   if (days === 1) return "gestern";
   if (days < 7) return `vor ${days} Tagen`;
   return format(new Date(iso), "d. MMM", { locale: de });
+}
+
+const BERLIN_TZ = "Europe/Berlin";
+
+/** Current date/time as seen in Europe/Berlin, independent of the device's
+ * own timezone/locale — the daily briefing's "new calendar day" boundary
+ * and time-of-day greeting must always use this, never local time, so two
+ * phones in different timezones (or a server render) agree on what "today"
+ * and "07:00" mean. `hourCycle: "h23"` sidesteps the well-known ICU quirk
+ * where `hour12: false` alone can render midnight as "24" instead of "00". */
+export function getBerlinParts(date: Date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BERLIN_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    weekday: "short",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  const weekday = get("weekday");
+  return {
+    isoDate: `${get("year")}-${get("month")}-${get("day")}`,
+    hour: Number(get("hour")),
+    minute: Number(get("minute")),
+    isWeekday: weekday !== "Sat" && weekday !== "Sun",
+  };
+}
+
+/** yyyy-MM-dd for "today" in Europe/Berlin — the calendar-day boundary the
+ * daily briefing's once-per-day gate and date-based comparisons key off. */
+export function todayISOInBerlin(date: Date = new Date()) {
+  return getBerlinParts(date).isoDate;
 }
 
 export { isSameDay, isToday, isTomorrow };

@@ -148,9 +148,120 @@ export interface ActivityEntry {
   createdAt: string;
 }
 
+export interface DailyBriefingSettings {
+  enabled: boolean;
+  /** Show the floating briefing card automatically on the first open of a
+   * new calendar day. When false, it's only ever reachable via the manual
+   * briefing icon. */
+  autoShow: boolean;
+  frequency: "daily" | "weekdays";
+  includeShared: boolean;
+  includePersonal: boolean;
+}
+
+export interface WidgetPrivacySettings {
+  showEventTitle: boolean;
+  /** When true, the widget shows only the time of the next event, never
+   * its title — independent of `hidePrivateContent`, which replaces the
+   * title with a placeholder rather than omitting it entirely. */
+  showTimeOnly: boolean;
+  showTasks: boolean;
+  hidePrivateContent: boolean;
+}
+
 export interface UserPreferences {
   activeProfile: PersonId;
   reducedMotionOverride: boolean | null;
   calendarFilters: Assignee[] | "alle";
   hasOnboarded: boolean;
+  dailyBriefing: DailyBriefingSettings;
+  widgetPrivacy: WidgetPrivacySettings;
+  /** Per-person last-seen date for the automatic daily briefing (ISO
+   * yyyy-MM-dd, Europe/Berlin). In Supabase mode only the signed-in
+   * profile's own key is ever populated — user_preferences is private per
+   * profile_id, so a partner's read state is never visible here, by
+   * design. */
+  dailyBriefingSeenDates: Partial<Record<PersonId, string>>;
+}
+
+// ---------------------------------------------------------------------------
+// Hausbau-Kalkulation — house-build budget & expense tracking. All money
+// fields are integer CENTS (never a float), matching the Postgres bigint
+// columns exactly — a deliberate departure from SavingsGoal/SavingsEntry's
+// numeric(12,2)/float, made explicit so it doesn't read as inconsistency.
+// ---------------------------------------------------------------------------
+
+export type HausbauPaymentSource = "bank" | "self";
+
+/** "planned" = forecast only, excluded from availability. "ordered"/
+ * "invoiced" = reserved (committed, not yet paid). "paid" = final. Exactly
+ * one at a time, so a row can never be counted as both reserved and paid. */
+export type HausbauExpenseStatus = "planned" | "ordered" | "invoiced" | "paid";
+
+export interface HausbauBudget {
+  projectName: string;
+  bankFinancingCents: number;
+  ownReserveCents: number;
+  /** Shown separately, never folded into any "available" total (spec §2). */
+  emergencyReserveCents: number;
+  currency: string;
+  startDate: string | null;
+  createdBy: PersonId | null;
+  updatedAt: string;
+}
+
+export interface HausbauCategory {
+  id: string;
+  key: string;
+  label: string;
+  icon: string;
+  color: string | null;
+  isSystem: boolean;
+  isActive: boolean;
+}
+
+export interface HausbauExpense {
+  id: string;
+  title: string;
+  categoryId: string | null;
+  /** The forecast figure — set while status is "planned", left as-is once
+   * the entry moves on so the original estimate survives for comparison. */
+  plannedAmountCents: number | null;
+  /** The committed/real figure — required for every status except
+   * "planned". This is the number every calculation uses once an entry is
+   * no longer just a forecast. */
+  actualAmountCents: number | null;
+  paymentSource: HausbauPaymentSource;
+  status: HausbauExpenseStatus;
+  invoiceDate: string | null;
+  dueDate: string | null;
+  vendor: string | null;
+  invoiceNumber: string | null;
+  notes: string | null;
+  receiptPath: string | null;
+  linkedEventId: string | null;
+  createdBy: PersonId | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HausbauSelfWork {
+  id: string;
+  title: string;
+  categoryId: string | null;
+  estimatedCompanyCostCents: number;
+  actualMaterialCostCents: number;
+  additionalExternalCostCents: number;
+  hours: number | null;
+  hourlyRateCents: number | null;
+  /** Which pot the material/external costs were actually paid from —
+   * always deducted immediately (self-work has no "planned"/"reserved"
+   * status of its own). */
+  paymentSource: HausbauPaymentSource;
+  workDate: string | null;
+  notes: string | null;
+  documentPaths: string[];
+  createdBy: PersonId | null;
+  createdAt: string;
+  updatedAt: string;
 }

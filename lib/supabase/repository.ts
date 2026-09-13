@@ -20,6 +20,12 @@ import type {
   CalendarEvent,
   CategoryDef,
   EventCategory,
+  HausbauBudget,
+  HausbauCategory,
+  HausbauExpense,
+  HausbauExpenseStatus,
+  HausbauPaymentSource,
+  HausbauSelfWork,
   Note,
   PersonId,
   RecurrenceRule,
@@ -708,4 +714,382 @@ export async function getBackupSignedUrl(storagePath: string): Promise<string> {
   return data.signedUrl;
 }
 
-export { rowToEvent, rowToTask, rowToGoal, rowToEntry, rowToNotification, rowToCategory, rowToNote, rowToActivity };
+// ---------------------------------------------------------------------------
+// Hausbau-Kalkulation — separate fetch (not folded into fetchFamilyData) so
+// the feature's own hook can load/subscribe independently. All money
+// fields round-trip as plain integer cents; nothing here ever divides or
+// floats them.
+// ---------------------------------------------------------------------------
+
+function rowToHausbauBudget(row: Row, profiles: FamilyProfileRef[]): HausbauBudget {
+  return {
+    projectName: row.project_name as string,
+    bankFinancingCents: row.bank_financing_cents as number,
+    ownReserveCents: row.own_reserve_cents as number,
+    emergencyReserveCents: row.emergency_reserve_cents as number,
+    currency: row.currency as string,
+    startDate: (row.start_date as string | null) ?? null,
+    createdBy: resolvePersonId(profiles, row.created_by as string | null),
+    updatedAt: row.updated_at as string,
+  };
+}
+
+function rowToHausbauCategory(row: Row): HausbauCategory {
+  return {
+    id: row.id as string,
+    key: row.key as string,
+    label: row.label as string,
+    icon: row.icon as string,
+    color: (row.color as string | null) ?? null,
+    isSystem: row.is_system as boolean,
+    isActive: row.is_active as boolean,
+  };
+}
+
+function rowToHausbauExpense(row: Row, profiles: FamilyProfileRef[]): HausbauExpense {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    categoryId: (row.category_id as string | null) ?? null,
+    plannedAmountCents: (row.planned_amount_cents as number | null) ?? null,
+    actualAmountCents: (row.actual_amount_cents as number | null) ?? null,
+    paymentSource: row.payment_source as HausbauPaymentSource,
+    status: row.status as HausbauExpenseStatus,
+    invoiceDate: (row.invoice_date as string | null) ?? null,
+    dueDate: (row.due_date as string | null) ?? null,
+    vendor: (row.vendor as string | null) ?? null,
+    invoiceNumber: (row.invoice_number as string | null) ?? null,
+    notes: (row.notes as string | null) ?? null,
+    receiptPath: (row.receipt_path as string | null) ?? null,
+    linkedEventId: (row.linked_event_id as string | null) ?? null,
+    createdBy: resolvePersonId(profiles, row.created_by as string | null),
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+function rowToHausbauSelfWork(row: Row, profiles: FamilyProfileRef[]): HausbauSelfWork {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    categoryId: (row.category_id as string | null) ?? null,
+    estimatedCompanyCostCents: row.estimated_company_cost_cents as number,
+    actualMaterialCostCents: row.actual_material_cost_cents as number,
+    additionalExternalCostCents: row.additional_external_cost_cents as number,
+    hours: row.hours === null || row.hours === undefined ? null : Number(row.hours),
+    hourlyRateCents: (row.hourly_rate_cents as number | null) ?? null,
+    paymentSource: row.payment_source as HausbauPaymentSource,
+    workDate: (row.work_date as string | null) ?? null,
+    notes: (row.notes as string | null) ?? null,
+    documentPaths: (row.document_paths as string[] | null) ?? [],
+    createdBy: resolvePersonId(profiles, row.created_by as string | null),
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+export async function fetchHausbauData(familyId: string, profiles: FamilyProfileRef[]) {
+  const supabase = client();
+
+  const [budgetRes, categoriesRes, expensesRes, selfWorkRes] = await Promise.all([
+    supabase.from("hausbau_budgets").select("*").eq("family_id", familyId).maybeSingle(),
+    supabase.from("hausbau_categories").select("*").eq("family_id", familyId).order("sort_order", { ascending: true }),
+    supabase.from("hausbau_expenses").select("*").eq("family_id", familyId),
+    supabase.from("hausbau_self_work").select("*").eq("family_id", familyId),
+  ]);
+
+  for (const res of [budgetRes, categoriesRes, expensesRes, selfWorkRes]) {
+    if (res.error) throw res.error;
+  }
+
+  const budget = budgetRes.data ? rowToHausbauBudget(budgetRes.data, profiles) : null;
+  const categories: HausbauCategory[] = (categoriesRes.data ?? []).map(rowToHausbauCategory);
+  const expenses: HausbauExpense[] = (expensesRes.data ?? []).map((row) => rowToHausbauExpense(row, profiles));
+  const selfWork: HausbauSelfWork[] = (selfWorkRes.data ?? []).map((row) => rowToHausbauSelfWork(row, profiles));
+
+  return { budget, categories, expenses, selfWork };
+}
+
+export async function upsertHausbauBudgetRow(
+  familyId: string,
+  profileId: string,
+  input: {
+    projectName: string;
+    bankFinancingCents: number;
+    ownReserveCents: number;
+    emergencyReserveCents: number;
+    startDate: string | null;
+  },
+  profiles: FamilyProfileRef[],
+): Promise<HausbauBudget> {
+  const { data, error } = await client()
+    .from("hausbau_budgets")
+    .upsert(
+      {
+        family_id: familyId,
+        project_name: input.projectName,
+        bank_financing_cents: input.bankFinancingCents,
+        own_reserve_cents: input.ownReserveCents,
+        emergency_reserve_cents: input.emergencyReserveCents,
+        start_date: input.startDate,
+        created_by: profileId,
+      },
+      { onConflict: "family_id" },
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToHausbauBudget(data, profiles);
+}
+
+// ---------------------------------------------------------------------------
+// Hausbau categories — same is_system/is_active pattern as event categories,
+// except "deactivate" replaces "delete" for custom rows (spec §6: "eigene
+// Kategorien ergänzen, bearbeiten und deaktivieren" — never remove one an
+// expense might already reference).
+// ---------------------------------------------------------------------------
+
+export async function insertHausbauCategoryRow(
+  familyId: string,
+  profileId: string,
+  existingKeys: string[],
+  input: { label: string; icon: string; color: string },
+): Promise<HausbauCategory> {
+  const key = slugifyCategoryKey(input.label, existingKeys);
+  const { data, error } = await client()
+    .from("hausbau_categories")
+    .insert({
+      family_id: familyId,
+      key,
+      label: input.label.trim(),
+      icon: input.icon,
+      color: input.color,
+      created_by: profileId,
+      is_system: false,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToHausbauCategory(data);
+}
+
+export async function updateHausbauCategoryRow(
+  id: string,
+  patch: { label?: string; icon?: string; color?: string; isActive?: boolean },
+): Promise<void> {
+  const update: Database["public"]["Tables"]["hausbau_categories"]["Update"] = {};
+  if (patch.label !== undefined) update.label = patch.label.trim();
+  if (patch.icon !== undefined) update.icon = patch.icon;
+  if (patch.color !== undefined) update.color = patch.color;
+  if (patch.isActive !== undefined) update.is_active = patch.isActive;
+  const { error } = await client().from("hausbau_categories").update(update).eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Hausbau expenses
+// ---------------------------------------------------------------------------
+
+export interface HausbauExpenseInput {
+  title: string;
+  categoryId: string | null;
+  amountCents: number;
+  paymentSource: HausbauPaymentSource;
+  status: HausbauExpenseStatus;
+  invoiceDate: string | null;
+  dueDate: string | null;
+  vendor: string | null;
+  invoiceNumber: string | null;
+  notes: string | null;
+  receiptPath: string | null;
+  linkedEventId: string | null;
+}
+
+// The single "Betrag" field from the form always writes to the column
+// matching the entry's CURRENT status — planned_amount_cents while
+// "Geplant", actual_amount_cents for every other status — and never
+// touches the other column, so an original planned estimate survives a
+// later "beauftragt"/"bezahlt" edit for comparison (spec §4/§11).
+function amountColumnsFor(status: HausbauExpenseStatus, amountCents: number) {
+  return status === "planned"
+    ? { planned_amount_cents: amountCents }
+    : { actual_amount_cents: amountCents };
+}
+
+export async function insertHausbauExpenseRow(
+  familyId: string,
+  profileId: string,
+  input: HausbauExpenseInput,
+  profiles: FamilyProfileRef[],
+): Promise<HausbauExpense> {
+  const { data, error } = await client()
+    .from("hausbau_expenses")
+    .insert({
+      family_id: familyId,
+      title: input.title,
+      category_id: input.categoryId,
+      payment_source: input.paymentSource,
+      status: input.status,
+      invoice_date: input.invoiceDate,
+      due_date: input.dueDate,
+      vendor: input.vendor,
+      invoice_number: input.invoiceNumber,
+      notes: input.notes,
+      receipt_path: input.receiptPath,
+      linked_event_id: input.linkedEventId,
+      created_by: profileId,
+      ...amountColumnsFor(input.status, input.amountCents),
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToHausbauExpense(data, profiles);
+}
+
+export async function updateHausbauExpenseRow(id: string, input: HausbauExpenseInput): Promise<void> {
+  const { error } = await client()
+    .from("hausbau_expenses")
+    .update({
+      title: input.title,
+      category_id: input.categoryId,
+      payment_source: input.paymentSource,
+      status: input.status,
+      invoice_date: input.invoiceDate,
+      due_date: input.dueDate,
+      vendor: input.vendor,
+      invoice_number: input.invoiceNumber,
+      notes: input.notes,
+      receipt_path: input.receiptPath,
+      linked_event_id: input.linkedEventId,
+      ...amountColumnsFor(input.status, input.amountCents),
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteHausbauExpenseRow(id: string): Promise<void> {
+  const { error } = await client().from("hausbau_expenses").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Hausbau self-performed work ("Eigenleistung")
+// ---------------------------------------------------------------------------
+
+export interface HausbauSelfWorkInput {
+  title: string;
+  categoryId: string | null;
+  estimatedCompanyCostCents: number;
+  actualMaterialCostCents: number;
+  additionalExternalCostCents: number;
+  hours: number | null;
+  hourlyRateCents: number | null;
+  paymentSource: HausbauPaymentSource;
+  workDate: string | null;
+  notes: string | null;
+  documentPaths: string[];
+}
+
+export async function insertHausbauSelfWorkRow(
+  familyId: string,
+  profileId: string,
+  input: HausbauSelfWorkInput,
+  profiles: FamilyProfileRef[],
+): Promise<HausbauSelfWork> {
+  const { data, error } = await client()
+    .from("hausbau_self_work")
+    .insert({
+      family_id: familyId,
+      title: input.title,
+      category_id: input.categoryId,
+      estimated_company_cost_cents: input.estimatedCompanyCostCents,
+      actual_material_cost_cents: input.actualMaterialCostCents,
+      additional_external_cost_cents: input.additionalExternalCostCents,
+      hours: input.hours,
+      hourly_rate_cents: input.hourlyRateCents,
+      payment_source: input.paymentSource,
+      work_date: input.workDate,
+      notes: input.notes,
+      document_paths: input.documentPaths,
+      created_by: profileId,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToHausbauSelfWork(data, profiles);
+}
+
+export async function updateHausbauSelfWorkRow(id: string, input: HausbauSelfWorkInput): Promise<void> {
+  const { error } = await client()
+    .from("hausbau_self_work")
+    .update({
+      title: input.title,
+      category_id: input.categoryId,
+      estimated_company_cost_cents: input.estimatedCompanyCostCents,
+      actual_material_cost_cents: input.actualMaterialCostCents,
+      additional_external_cost_cents: input.additionalExternalCostCents,
+      hours: input.hours,
+      hourly_rate_cents: input.hourlyRateCents,
+      payment_source: input.paymentSource,
+      work_date: input.workDate,
+      notes: input.notes,
+      document_paths: input.documentPaths,
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteHausbauSelfWorkRow(id: string): Promise<void> {
+  const { error } = await client().from("hausbau_self_work").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Hausbau documents — receipts/photos, private per-family folder (same
+// bucket-scoping pattern as "backups"). Client-side upload is genuinely new
+// infrastructure — no prior client upload helper existed anywhere in the
+// app to copy from (the "backups" bucket is written server-side only).
+// ---------------------------------------------------------------------------
+
+const HAUSBAU_DOCUMENTS_BUCKET = "hausbau-documents";
+const ALLOWED_DOCUMENT_TYPES = ["image/jpeg", "image/png", "image/heic", "image/webp", "application/pdf"];
+
+export async function uploadHausbauDocument(familyId: string, file: File): Promise<string> {
+  if (!ALLOWED_DOCUMENT_TYPES.includes(file.type)) {
+    throw new Error("Nur Bilder (JPEG, PNG, HEIC, WebP) oder PDF-Dateien sind erlaubt.");
+  }
+  const ext = file.name.includes(".") ? file.name.split(".").pop() : "dat";
+  const path = `${familyId}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await client().storage.from(HAUSBAU_DOCUMENTS_BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) throw error;
+  return path;
+}
+
+export async function getHausbauDocumentSignedUrl(path: string): Promise<string> {
+  const { data, error } = await client().storage.from(HAUSBAU_DOCUMENTS_BUCKET).createSignedUrl(path, 300);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+export async function deleteHausbauDocument(path: string): Promise<void> {
+  const { error } = await client().storage.from(HAUSBAU_DOCUMENTS_BUCKET).remove([path]);
+  if (error) throw error;
+}
+
+export {
+  rowToEvent,
+  rowToTask,
+  rowToGoal,
+  rowToEntry,
+  rowToNotification,
+  rowToCategory,
+  rowToNote,
+  rowToActivity,
+  rowToHausbauBudget,
+  rowToHausbauCategory,
+  rowToHausbauExpense,
+  rowToHausbauSelfWork,
+};
