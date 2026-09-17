@@ -101,7 +101,7 @@ Deno.serve(async (req: Request) => {
     // reminder.message already carries the full, prep-task-aware copy
     // (built client-side in lib/reminder-messages.ts when the reminder row
     // was written) — only the title needs a fresh lookup of the title.
-    let title = "dayli Erinnerung";
+    let title = "⏰ dayli Erinnerung";
     const body = reminder.message ?? "";
     let recurrenceRule: string | null = null;
     let assignee: string | null = null;
@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", reminder.event_id)
         .maybeSingle();
       if (event) {
-        title = `Erinnerung: ${event.title}`;
+        title = `⏰ Erinnerung: ${event.title}`;
         recurrenceRule = event.recurrence_rule;
         assignee = event.assignee;
       }
@@ -124,7 +124,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", reminder.task_id)
         .maybeSingle();
       if (task) {
-        title = `Erinnerung: ${task.title}`;
+        title = `✅ Erinnerung: ${task.title}`;
         assignee = task.assignee;
       }
     }
