@@ -56,13 +56,18 @@ Deno.serve(async (req: Request) => {
       .eq("family_id", family.id)
       .eq("done", false);
 
+    const events = eventCount ?? 0;
+    const tasksOpen = taskCount ?? 0;
+    const eventPhrase = events === 1 ? "1 Termin" : `${events} Termine`;
+    const taskPhrase = tasksOpen === 1 ? "1 offene Aufgabe" : `${tasksOpen} offene Aufgaben`;
+
     const body =
-      (eventCount ?? 0) === 0 && (taskCount ?? 0) === 0
+      events === 0 && tasksOpen === 0
         ? "Eine ruhige Woche ohne offene Termine oder Aufgaben."
-        : `${eventCount ?? 0} Termin(e) diese Woche · ${taskCount ?? 0} offene Aufgabe(n).`;
+        : `${eventPhrase} diese Woche · ${taskPhrase}.`;
 
     totalSent += await sendPushToFamily(supabase, family.id, {
-      title: "Euer Wochenüberblick",
+      title: "🗓️ Euer Wochenüberblick",
       body,
       tag: `weekly-${family.id}`,
     });
