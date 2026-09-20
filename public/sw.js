@@ -1,4 +1,4 @@
-const CACHE_VERSION = "dayli-v1";
+const CACHE_VERSION = "dayli-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline";
 
