@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addDays, addYears, startOfWeek } from "date-fns";
+import { addMonths, addYears, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarX } from "lucide-react";
 import { useAppStore } from "@/lib/store/app-store";
@@ -13,7 +13,7 @@ import { toISODate, getBerlinParts } from "@/lib/date-utils";
 import { expandEventOccurrences, expandEventsForDay } from "@/lib/recurrence";
 import { computeDailyBriefing } from "@/lib/briefing";
 import { Greeting } from "@/components/today/Greeting";
-import { WeekStrip } from "@/components/today/WeekStrip";
+import { MonthCalendarCard } from "@/components/today/MonthCalendarCard";
 import { TimeForUsCard } from "@/components/today/TimeForUsCard";
 import { TodaySummaryCard } from "@/components/today/TodaySummaryCard";
 import { HausbauCard } from "@/components/hausbau/HausbauCard";
@@ -26,7 +26,7 @@ export default function HomePage() {
   const { splashDone } = useSplash();
   const reducedMotion = useReducedMotion();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [monthAnchor, setMonthAnchor] = useState(() => new Date());
 
   const selectedISO = toISODate(selectedDate);
 
@@ -39,7 +39,7 @@ export default function HomePage() {
 
   // "Als Nächstes" must always be the true chronologically next event —
   // across day boundaries, filtered by the actual current time, never
-  // limited to whichever day is selected in the week strip (spec §12).
+  // limited to whichever day is selected in the month calendar (spec §12).
   // Full timestamps, not bare date strings: a today event only drops out
   // once its end time (or start time, if it has no end) has actually
   // passed; an all-day event counts as upcoming for its whole calendar day.
@@ -69,10 +69,14 @@ export default function HomePage() {
   const [nextEvent, ...restEvents] = upcomingEvents;
   const furtherEvents = restEvents.slice(0, 3);
 
-  const weekEvents = useMemo(() => {
-    const weekEnd = addDays(weekStart, 6);
-    return expandEventOccurrences(events, toISODate(weekStart), toISODate(weekEnd));
-  }, [events, weekStart]);
+  // Same range the Kalender tab's month grid uses (full leading/trailing
+  // weeks included) so dots for days just outside the month still show up.
+  const monthGridEvents = useMemo(() => {
+    const monthStart = startOfMonth(monthAnchor);
+    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const gridEnd = endOfWeek(endOfMonth(monthStart), { weekStartsOn: 1 });
+    return expandEventOccurrences(events, toISODate(gridStart), toISODate(gridEnd));
+  }, [events, monthAnchor]);
 
   const timeForUs = useMemo(() => {
     const explicit = dayEvents.find((e) => e.category === "freizeit" && e.assignee === "gemeinsam");
@@ -90,14 +94,20 @@ export default function HomePage() {
     setSelectedDate(date);
   }
 
-  function swipeWeek(dir: 1 | -1) {
-    setWeekStart((prev) => addDays(prev, dir * 7));
+  function swipeMonth(dir: 1 | -1) {
+    setMonthAnchor((prev) => addMonths(prev, dir));
+  }
+
+  function goToday() {
+    const now = new Date();
+    setMonthAnchor(now);
+    setSelectedDate(now);
   }
 
   const activeName = PROFILES[preferences.activeProfile].name;
 
   // Always the real "today" (Europe/Berlin), never `selectedISO` — the
-  // week-strip's selected day must never leak into the briefing (spec §7).
+  // month calendar's selected day must never leak into the briefing (spec §7).
   const briefingData = useMemo(
     () =>
       computeDailyBriefing({
@@ -113,12 +123,15 @@ export default function HomePage() {
   return (
     <div>
       <Greeting name={activeName} date={selectedDate} animate={splashDone} />
-      <WeekStrip
-        weekStart={weekStart}
+      <MonthCalendarCard
+        month={monthAnchor}
         selectedDate={selectedDate}
         onSelectDate={selectDate}
-        onSwipeWeek={swipeWeek}
-        events={weekEvents}
+        onSwipeMonth={swipeMonth}
+        onGoToday={goToday}
+        gridEvents={monthGridEvents}
+        dayEvents={dayEvents}
+        onAddEvent={() => openNewEvent(selectedISO)}
         animate={splashDone}
       />
       <TimeForUsCard startLabel={timeForUs.label} subtitle={timeForUs.subtitle} animate={splashDone} />
