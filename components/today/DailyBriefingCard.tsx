@@ -20,10 +20,9 @@ const HIGHLIGHT_ICONS: Record<BriefingIcon, LucideIcon> = {
  * form) that still lets the app's own atmospheric background show through.
  * Reuses NotificationsPopover's glass recipe (dark translucent navy +
  * strong backdrop blur) but centered, sized to ~85% of the viewport width,
- * and framed with a soft cyan/pink/violet ambient glow — the same
- * Domenico/Elisabeth/gemeinsam trio used by TimeForUsCard — instead of a
- * literal multi-color border line, which CSS can't render cleanly on a
- * rounded rect.
+ * and framed with a soft cyan/pink/violet ambient glow — dayli's usual
+ * Domenico/Elisabeth/gemeinsam trio — instead of a literal multi-color
+ * border line, which CSS can't render cleanly on a rounded rect.
  */
 export function DailyBriefingCard({
   open,
