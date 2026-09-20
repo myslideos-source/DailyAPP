@@ -53,16 +53,20 @@ export function relativeDayLabel(date: Date) {
 /** Capitalized label for an event row's date prefix (spec: home page
  * "Als Nächstes"/"Weitere Termine") — null for today (show only the time,
  * no date prefix at all), "Morgen" for tomorrow, the weekday name within
- * the same week, otherwise "d. MMMM". Distinct from `relativeDayLabel`
- * (which always names a weekday for any future date, no "today = no
- * label" case) and from the lowercase mid-sentence `relativeDayPhrase`
- * below. */
+ * the same week, otherwise "d. MMMM" (plus the year once the date falls
+ * outside the current calendar year — a bare "28. Juli" for a yearly
+ * recurring event's *next* occurrence next July reads exactly like an
+ * already-passed date from this year otherwise). Distinct from
+ * `relativeDayLabel` (which always names a weekday for any future date, no
+ * "today = no label" case) and from the lowercase mid-sentence
+ * `relativeDayPhrase` below. */
 export function relativeDayLabelForRow(date: Date): string | null {
   if (isToday(date)) return null;
   if (isTomorrow(date)) return "Morgen";
   const diff = differenceInCalendarDays(date, new Date());
   if (diff > 1 && diff < 7) return format(date, "EEEE", { locale: de });
-  return format(date, "d. MMMM", { locale: de });
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return format(date, sameYear ? "d. MMMM" : "d. MMMM yyyy", { locale: de });
 }
 
 /** Lowercase, mid-sentence variant of relativeDayLabel — for reminder/
