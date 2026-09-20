@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addMonths, addYears, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
+import { addMonths, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarX } from "lucide-react";
 import { useAppStore } from "@/lib/store/app-store";
@@ -10,7 +10,7 @@ import { useSheet } from "@/lib/store/sheet-context";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { useNowTick } from "@/lib/hooks/useNowTick";
 import { PROFILES } from "@/lib/demo-data";
-import { toISODate, getBerlinParts } from "@/lib/date-utils";
+import { toISODate, fromISODate, getBerlinParts } from "@/lib/date-utils";
 import { expandEventOccurrences, expandEventsForDay } from "@/lib/recurrence";
 import { Greeting } from "@/components/today/Greeting";
 import { MonthCalendarCard } from "@/components/today/MonthCalendarCard";
@@ -35,55 +35,43 @@ export default function HomePage() {
     });
   }, [events, selectedISO]);
 
-  // "Als Nächstes" must always be the true chronologically next event —
-  // across day boundaries, filtered by the actual current time, never
-  // limited to whichever day is selected in the month calendar (spec §12).
-  // Full timestamps, not bare date strings: a today event only drops out
-  // once its end time (or start time, if it has no end) has actually
-  // passed; an all-day event counts as upcoming for its whole calendar day.
-  // `nowTick` is otherwise unused below — it's there purely so this memo
-  // re-evaluates "now" as time passes, not only when `events` itself
-  // changes. Without it, an already-past event kept showing here for as
-  // long as the tab stayed open without any actual data change.
+  // "Als Nächstes"/"Weitere Termine" only ever look within the current
+  // calendar month — never a "yearly recurring event" 2-year lookahead,
+  // which used to surface e.g. next year's birthday alongside this
+  // month's real termine. Always anchored to the true today (Europe/
+  // Berlin), never whichever day is selected in the month calendar above
+  // (spec §12). Full timestamps, not bare date strings: a today event only
+  // drops out once its end time (or start time, if it has no end) has
+  // actually passed; an all-day event counts as upcoming for its whole
+  // calendar day. `nowTick` is otherwise unused below — it's there purely
+  // so this memo re-evaluates "now" as time passes, not only when `events`
+  // itself changes. Without it, an already-past event kept showing here
+  // for as long as the tab stayed open without any actual data change.
   const upcomingEvents = useMemo(() => {
     const { isoDate: todayISO, hour, minute } = getBerlinParts();
     const nowHHmm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-    const farFutureISO = toISODate(addYears(new Date(), 2));
-    const occurrences = expandEventOccurrences(events, todayISO, farFutureISO).filter((e) => {
-      if (e.date > todayISO) return true;
-      if (e.date < todayISO) return false;
-      if (e.allDay) return true;
-      const cutoff = e.endTime ?? e.startTime;
-      return !cutoff || cutoff > nowHHmm;
-    });
-
-    // A yearly (or other multi-cycle) recurring event can land more than
-    // one occurrence inside this 2-year lookahead window — e.g. both next
-    // July and the July after. Left as-is, the same series then shows up
-    // twice, and since the row label never prints a year (spec: "28. Juli"
-    // only) those look like plain, identical duplicates. Keep only the
-    // nearest occurrence per event id.
-    const earliestById = new Map<string, (typeof occurrences)[number]>();
-    for (const e of occurrences) {
-      const existing = earliestById.get(e.id);
-      const key = `${e.date}T${e.startTime ?? ""}`;
-      const existingKey = existing ? `${existing.date}T${existing.startTime ?? ""}` : null;
-      if (!existing || key < existingKey!) earliestById.set(e.id, e);
-    }
-
-    return Array.from(earliestById.values()).sort((a, b) => {
-      if (a.date !== b.date) return a.date.localeCompare(b.date);
-      if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
-      return (a.startTime ?? "").localeCompare(b.startTime ?? "");
-    });
+    const monthEndISO = toISODate(endOfMonth(fromISODate(todayISO)));
+    return expandEventOccurrences(events, todayISO, monthEndISO)
+      .filter((e) => {
+        if (e.date > todayISO) return true;
+        if (e.date < todayISO) return false;
+        if (e.allDay) return true;
+        const cutoff = e.endTime ?? e.startTime;
+        return !cutoff || cutoff > nowHHmm;
+      })
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+        return (a.startTime ?? "").localeCompare(b.startTime ?? "");
+      });
     // nowTick isn't read above — it's a dependency purely to force this
     // memo to re-run as time passes, see the comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events, nowTick]);
 
   // The next event is featured as "Als Nächstes"; up to three further
-  // ones follow as "Weitere Termine" (spec §13) — both spanning as many
-  // days into the future as needed, not just today.
+  // ones follow as "Weitere Termine" (spec §13) — both spanning the rest
+  // of the current calendar month, not just today.
   const [nextEvent, ...restEvents] = upcomingEvents;
   const furtherEvents = restEvents.slice(0, 3);
 
@@ -138,7 +126,7 @@ export default function HomePage() {
               <EmptyState
                 icon={CalendarX}
                 title="Noch nichts geplant"
-                description="Es stehen aktuell keine kommenden Termine an."
+                description="Für diesen Monat stehen keine weiteren Termine an."
                 action={
                   <button
                     type="button"
