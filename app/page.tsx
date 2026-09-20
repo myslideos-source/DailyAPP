@@ -12,16 +12,14 @@ import { useNowTick } from "@/lib/hooks/useNowTick";
 import { PROFILES } from "@/lib/demo-data";
 import { toISODate, getBerlinParts } from "@/lib/date-utils";
 import { expandEventOccurrences, expandEventsForDay } from "@/lib/recurrence";
-import { computeDailyBriefing } from "@/lib/briefing";
 import { Greeting } from "@/components/today/Greeting";
 import { MonthCalendarCard } from "@/components/today/MonthCalendarCard";
-import { TodaySummaryCard } from "@/components/today/TodaySummaryCard";
 import { EventSummaryRow } from "@/components/events/EventSummaryRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function HomePage() {
-  const { events, tasks, preferences } = useAppStore();
-  const { openNewEvent, openDailyBriefing } = useSheet();
+  const { events, preferences } = useAppStore();
+  const { openNewEvent } = useSheet();
   const { splashDone } = useSplash();
   const reducedMotion = useReducedMotion();
   const nowTick = useNowTick();
@@ -101,20 +99,6 @@ export default function HomePage() {
 
   const activeName = PROFILES[preferences.activeProfile].name;
 
-  // Always the real "today" (Europe/Berlin), never `selectedISO` — the
-  // month calendar's selected day must never leak into the briefing (spec §7).
-  const briefingData = useMemo(
-    () =>
-      computeDailyBriefing({
-        events,
-        tasks,
-        personId: preferences.activeProfile,
-        includeShared: preferences.dailyBriefing.includeShared,
-        includePersonal: preferences.dailyBriefing.includePersonal,
-      }),
-    [events, tasks, preferences.activeProfile, preferences.dailyBriefing.includeShared, preferences.dailyBriefing.includePersonal],
-  );
-
   return (
     <div>
       <Greeting name={activeName} date={selectedDate} animate={splashDone} />
@@ -129,7 +113,6 @@ export default function HomePage() {
         onAddEvent={() => openNewEvent(selectedISO)}
         animate={splashDone}
       />
-      <TodaySummaryCard data={briefingData} onOpen={openDailyBriefing} animate={splashDone} />
 
       <AnimatePresence initial={false}>
         <motion.div
