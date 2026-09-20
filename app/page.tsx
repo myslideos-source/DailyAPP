@@ -8,23 +8,23 @@ import { useAppStore } from "@/lib/store/app-store";
 import { useSplash } from "@/lib/store/splash-context";
 import { useSheet } from "@/lib/store/sheet-context";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
+import { useNowTick } from "@/lib/hooks/useNowTick";
 import { PROFILES } from "@/lib/demo-data";
 import { toISODate, getBerlinParts } from "@/lib/date-utils";
 import { expandEventOccurrences, expandEventsForDay } from "@/lib/recurrence";
 import { computeDailyBriefing } from "@/lib/briefing";
 import { Greeting } from "@/components/today/Greeting";
 import { MonthCalendarCard } from "@/components/today/MonthCalendarCard";
-import { TimeForUsCard } from "@/components/today/TimeForUsCard";
 import { TodaySummaryCard } from "@/components/today/TodaySummaryCard";
-import { HausbauCard } from "@/components/hausbau/HausbauCard";
 import { EventSummaryRow } from "@/components/events/EventSummaryRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function HomePage() {
-  const { events, tasks, preferences, hausbauBudget, hausbauExpenses, hausbauSelfWork } = useAppStore();
-  const { openNewEvent, openDailyBriefing, openHausbauOverview, openHausbauExpenseEdit, openHausbauBudget } = useSheet();
+  const { events, tasks, preferences } = useAppStore();
+  const { openNewEvent, openDailyBriefing } = useSheet();
   const { splashDone } = useSplash();
   const reducedMotion = useReducedMotion();
+  const nowTick = useNowTick();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
 
@@ -43,6 +43,10 @@ export default function HomePage() {
   // Full timestamps, not bare date strings: a today event only drops out
   // once its end time (or start time, if it has no end) has actually
   // passed; an all-day event counts as upcoming for its whole calendar day.
+  // `nowTick` is otherwise unused below — it's there purely so this memo
+  // re-evaluates "now" as time passes, not only when `events` itself
+  // changes. Without it, an already-past event kept showing here for as
+  // long as the tab stayed open without any actual data change.
   const upcomingEvents = useMemo(() => {
     const { isoDate: todayISO, hour, minute } = getBerlinParts();
     const nowHHmm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
@@ -61,7 +65,10 @@ export default function HomePage() {
         if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
         return (a.startTime ?? "").localeCompare(b.startTime ?? "");
       });
-  }, [events]);
+    // nowTick isn't read above — it's a dependency purely to force this
+    // memo to re-run as time passes, see the comment above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, nowTick]);
 
   // The next event is featured as "Als Nächstes"; up to three further
   // ones follow as "Weitere Termine" (spec §13) — both spanning as many
@@ -77,18 +84,6 @@ export default function HomePage() {
     const gridEnd = endOfWeek(endOfMonth(monthStart), { weekStartsOn: 1 });
     return expandEventOccurrences(events, toISODate(gridStart), toISODate(gridEnd));
   }, [events, monthAnchor]);
-
-  const timeForUs = useMemo(() => {
-    const explicit = dayEvents.find((e) => e.category === "freizeit" && e.assignee === "gemeinsam");
-    if (explicit) {
-      return { label: explicit.startTime, subtitle: explicit.notes ?? "Der Abend gehört euch" };
-    }
-    const timed = dayEvents.filter((e) => !e.allDay && e.endTime);
-    if (timed.length === 0) return { label: "19:00", subtitle: "Der Abend gehört euch" };
-    const lastEnd = timed.reduce((max, e) => (e.endTime! > max ? e.endTime! : max), "00:00");
-    const start = lastEnd > "18:00" ? lastEnd : "18:00";
-    return { label: start, subtitle: "Der Abend gehört euch" };
-  }, [dayEvents]);
 
   function selectDate(date: Date) {
     setSelectedDate(date);
@@ -134,17 +129,7 @@ export default function HomePage() {
         onAddEvent={() => openNewEvent(selectedISO)}
         animate={splashDone}
       />
-      <TimeForUsCard startLabel={timeForUs.label} subtitle={timeForUs.subtitle} animate={splashDone} />
       <TodaySummaryCard data={briefingData} onOpen={openDailyBriefing} animate={splashDone} />
-      <HausbauCard
-        budget={hausbauBudget}
-        expenses={hausbauExpenses}
-        selfWork={hausbauSelfWork}
-        onOpenOverview={openHausbauOverview}
-        onAddExpense={() => openHausbauExpenseEdit(undefined)}
-        onSetup={openHausbauBudget}
-        animate={splashDone}
-      />
 
       <AnimatePresence initial={false}>
         <motion.div
