@@ -98,7 +98,7 @@ const REMINDER_ACTION_URL = "https://jghfdzmvvizddomwqtzq.supabase.co/functions/
 // tab is open. reminderId/sig/hasTask back the "Erledigt"/"1 Std. später"
 // action buttons below.
 self.addEventListener("push", (event) => {
-  let payload = { title: "dayli Erinnerung", body: "" };
+  let payload = { title: "Erinnerung", body: "" };
   try {
     if (event.data) payload = { ...payload, ...event.data.json() };
   } catch {
