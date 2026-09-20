@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addMonths, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
+import { addMonths, differenceInCalendarDays, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarX } from "lucide-react";
 import { useAppStore } from "@/lib/store/app-store";
@@ -38,19 +38,28 @@ export default function HomePage() {
   // "Als Nächstes"/"Weitere Termine" only ever look within the current
   // calendar month — never a "yearly recurring event" 2-year lookahead,
   // which used to surface e.g. next year's birthday alongside this
-  // month's real termine. Always anchored to the true today (Europe/
-  // Berlin), never whichever day is selected in the month calendar above
-  // (spec §12). Full timestamps, not bare date strings: a today event only
-  // drops out once its end time (or start time, if it has no end) has
-  // actually passed; an all-day event counts as upcoming for its whole
-  // calendar day. `nowTick` is otherwise unused below — it's there purely
-  // so this memo re-evaluates "now" as time passes, not only when `events`
-  // itself changes. Without it, an already-past event kept showing here
-  // for as long as the tab stayed open without any actual data change.
+  // month's real termine. Once the month is down to its last week or so,
+  // that same cutoff would otherwise leave the list running dry a few days
+  // before it's actually over — so the search range then also reaches into
+  // next month, far enough that there's always still a genuine "next
+  // termin" to show, not just an early empty state. Always anchored to the
+  // true today (Europe/Berlin), never whichever day is selected in the
+  // month calendar above (spec §12). Full timestamps, not bare date
+  // strings: a today event only drops out once its end time (or start
+  // time, if it has no end) has actually passed; an all-day event counts
+  // as upcoming for its whole calendar day. `nowTick` is otherwise unused
+  // below — it's there purely so this memo re-evaluates "now" as time
+  // passes, not only when `events` itself changes. Without it, an
+  // already-past event kept showing here for as long as the tab stayed
+  // open without any actual data change.
   const upcomingEvents = useMemo(() => {
     const { isoDate: todayISO, hour, minute } = getBerlinParts();
     const nowHHmm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-    const monthEndISO = toISODate(endOfMonth(fromISODate(todayISO)));
+    const today = fromISODate(todayISO);
+    const monthEnd = endOfMonth(today);
+    const daysLeftInMonth = differenceInCalendarDays(monthEnd, today);
+    const rangeEnd = daysLeftInMonth <= 7 ? endOfMonth(addMonths(today, 1)) : monthEnd;
+    const monthEndISO = toISODate(rangeEnd);
     return expandEventOccurrences(events, todayISO, monthEndISO)
       .filter((e) => {
         if (e.date > todayISO) return true;
@@ -71,7 +80,8 @@ export default function HomePage() {
 
   // The next event is featured as "Als Nächstes"; up to three further
   // ones follow as "Weitere Termine" (spec §13) — both spanning the rest
-  // of the current calendar month, not just today.
+  // of the current calendar month (plus a spillover into next month once
+  // this one is nearly over, see above), not just today.
   const [nextEvent, ...restEvents] = upcomingEvents;
   const furtherEvents = restEvents.slice(0, 3);
 
