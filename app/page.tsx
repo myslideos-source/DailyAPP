@@ -49,20 +49,33 @@ export default function HomePage() {
     const { isoDate: todayISO, hour, minute } = getBerlinParts();
     const nowHHmm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
     const farFutureISO = toISODate(addYears(new Date(), 2));
-    const occurrences = expandEventOccurrences(events, todayISO, farFutureISO);
-    return occurrences
-      .filter((e) => {
-        if (e.date > todayISO) return true;
-        if (e.date < todayISO) return false;
-        if (e.allDay) return true;
-        const cutoff = e.endTime ?? e.startTime;
-        return !cutoff || cutoff > nowHHmm;
-      })
-      .sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
-        return (a.startTime ?? "").localeCompare(b.startTime ?? "");
-      });
+    const occurrences = expandEventOccurrences(events, todayISO, farFutureISO).filter((e) => {
+      if (e.date > todayISO) return true;
+      if (e.date < todayISO) return false;
+      if (e.allDay) return true;
+      const cutoff = e.endTime ?? e.startTime;
+      return !cutoff || cutoff > nowHHmm;
+    });
+
+    // A yearly (or other multi-cycle) recurring event can land more than
+    // one occurrence inside this 2-year lookahead window — e.g. both next
+    // July and the July after. Left as-is, the same series then shows up
+    // twice, and since the row label never prints a year (spec: "28. Juli"
+    // only) those look like plain, identical duplicates. Keep only the
+    // nearest occurrence per event id.
+    const earliestById = new Map<string, (typeof occurrences)[number]>();
+    for (const e of occurrences) {
+      const existing = earliestById.get(e.id);
+      const key = `${e.date}T${e.startTime ?? ""}`;
+      const existingKey = existing ? `${existing.date}T${existing.startTime ?? ""}` : null;
+      if (!existing || key < existingKey!) earliestById.set(e.id, e);
+    }
+
+    return Array.from(earliestById.values()).sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+      return (a.startTime ?? "").localeCompare(b.startTime ?? "");
+    });
     // nowTick isn't read above — it's a dependency purely to force this
     // memo to re-run as time passes, see the comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
