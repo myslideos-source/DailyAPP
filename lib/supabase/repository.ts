@@ -78,23 +78,32 @@ function resolvePersonId(profiles: FamilyProfileRef[], id: string | null): Perso
 // time. A stored `message` carries prep-task-aware copy (see lib/reminder-
 // messages.ts) so the edge function and the in-app bell don't re-derive it.
 //
-// A recurring event's reminder only ever tracks ONE upcoming occurrence —
-// send-due-reminders itself advances remind_at to the next occurrence after
-// firing (rather than marking it sent) for events with recurrence !== "none",
-// so e.g. a yearly birthday reminder keeps repeating without the app needing
-// to be reopened.
+// A recurring event's reminder only ever tracks ONE upcoming occurrence per
+// row — send-due-reminders itself advances remind_at to the next occurrence
+// after firing (rather than marking it sent) for events with recurrence !==
+// "none", so e.g. a yearly birthday reminder keeps repeating without the app
+// needing to be reopened. That advancing is per reminder row (by its own
+// id), so it works the same whether an event has one reminder or several.
 // ---------------------------------------------------------------------------
+
+// Every event gets these two reminders automatically — the day before and
+// an hour before — with no manual setup required. The reminders table has
+// no unique constraint on event_id (see the migration), so more than one
+// row per event is fine; each fires and advances independently.
+const AUTOMATIC_EVENT_REMINDER_OFFSETS_MINUTES = [24 * 60, 60];
 
 export async function syncEventReminder(familyId: string, event: CalendarEvent) {
   const supabase = client();
 
-  if (!event.reminderMinutesBefore) {
-    const { error } = await supabase.from("reminders").delete().eq("event_id", event.id);
-    if (error) throw error;
-    return;
-  }
+  const { error: deleteError } = await supabase.from("reminders").delete().eq("event_id", event.id);
+  if (deleteError) throw deleteError;
 
-  const remindAt = computeEventRemindAt(event.date, event.startTime, event.reminderMinutesBefore).toISOString();
+  // The user's own explicit "Erinnerung" choice from the form joins the two
+  // automatic offsets rather than replacing them — deduplicated via a Set
+  // so picking exactly "1 Stunde vorher" doesn't create two identical rows.
+  const offsets = new Set(AUTOMATIC_EVENT_REMINDER_OFFSETS_MINUTES);
+  if (event.reminderMinutesBefore) offsets.add(event.reminderMinutesBefore);
+
   const { count } = await supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
@@ -102,15 +111,15 @@ export async function syncEventReminder(familyId: string, event: CalendarEvent) 
     .eq("done", false);
   const message = buildEventReminderMessage(event, count ?? 0);
 
-  const { error: deleteError } = await supabase.from("reminders").delete().eq("event_id", event.id);
-  if (deleteError) throw deleteError;
-  const { error: insertError } = await supabase.from("reminders").insert({
+  const rows = Array.from(offsets).map((minutesBefore) => ({
     family_id: familyId,
     event_id: event.id,
-    remind_at: remindAt,
+    remind_at: computeEventRemindAt(event.date, event.startTime, minutesBefore).toISOString(),
     message,
     sent: false,
-  });
+  }));
+
+  const { error: insertError } = await supabase.from("reminders").insert(rows);
   if (insertError) throw insertError;
 }
 
@@ -400,11 +409,16 @@ export async function updateEventRow(
   const { error } = await client().from("events").update(update).eq("id", id);
   if (error) throw error;
 
+  // Since every event always carries the two automatic reminders (see
+  // syncEventReminder), a title change also counts as reminder-relevant —
+  // otherwise the stored reminder message text (which quotes the title)
+  // would go stale after a rename.
   const reminderRelevant =
     patch.reminderMinutesBefore !== undefined ||
     patch.date !== undefined ||
     patch.startTime !== undefined ||
-    patch.allDay !== undefined;
+    patch.allDay !== undefined ||
+    patch.title !== undefined;
   if (reminderRelevant) {
     try {
       await syncEventReminder(familyId, merged);
