@@ -425,7 +425,7 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
 
         <div className="grid w-full grid-cols-2 gap-3">
           <div className="min-w-0">
-            <FieldLabel>Erinnerung</FieldLabel>
+            <FieldLabel>Zusätzliche Erinnerung</FieldLabel>
             <select
               value={reminder}
               onChange={(e) => setReminder(e.target.value)}
@@ -438,6 +438,9 @@ export function EventFormSheet({ open, onClose, defaultDate, presetCategory, edi
                 </option>
               ))}
             </select>
+            <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: "var(--dl-text-faint)" }}>
+              Am Vortag und eine Stunde vorher gibt&apos;s ohnehin automatisch Push.
+            </p>
           </div>
           <div className="min-w-0">
             <FieldLabel>Wiederholung</FieldLabel>
