@@ -1,4 +1,4 @@
-const CACHE_VERSION = "dayli-v2";
+const CACHE_VERSION = "dayli-v3";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline";
 
@@ -93,10 +93,13 @@ self.addEventListener("fetch", (event) => {
 const REMINDER_ACTION_URL = "https://jghfdzmvvizddomwqtzq.supabase.co/functions/v1/reminder-action";
 
 // Real Web Push: the send-due-reminders edge function posts a JSON payload
-// of { title, body, tag, reminderId, sig, hasTask } — this is what lets a
-// reminder reach the device even with dayli fully closed, not just while a
-// tab is open. reminderId/sig/hasTask back the "Erledigt"/"1 Std. später"
-// action buttons below.
+// of { title, body, tag, url, reminderId, sig, hasTask } — this is what
+// lets a reminder reach the device even with dayli fully closed, not just
+// while a tab is open. `url` is the specific event/tasks-list destination
+// a plain tap should open (send-due-reminders decides it, since it's the
+// one that knows whether this reminder was for an event or a task);
+// reminderId/sig/hasTask back the "Erledigt"/"1 Std. später" action
+// buttons below.
 self.addEventListener("push", (event) => {
   let payload = { title: "Erinnerung", body: "" };
   try {
@@ -114,7 +117,7 @@ self.addEventListener("push", (event) => {
       tag: payload.tag,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-96.png",
-      data: { url: "/", reminderId: payload.reminderId, sig: payload.sig },
+      data: { url: payload.url || "/", reminderId: payload.reminderId, sig: payload.sig },
       actions: payload.reminderId && payload.sig ? actions : undefined,
     }),
   );
@@ -141,7 +144,20 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsList) => {
       for (const client of clientsList) {
-        if ("focus" in client) return client.focus();
+        if ("focus" in client) {
+          // An already-open window only gets brought to the front by
+          // focus() alone — it stays on whatever page it happened to be
+          // showing. navigate() first so a background tap on an event
+          // reminder actually lands on that event, not just "the app,
+          // wherever it was".
+          if ("navigate" in client) {
+            return client
+              .navigate(targetUrl)
+              .then((navigated) => (navigated || client).focus())
+              .catch(() => client.focus());
+          }
+          return client.focus();
+        }
       }
       if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
     }),
