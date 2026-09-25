@@ -69,6 +69,19 @@ export function relativeDayLabelForRow(date: Date): string | null {
   return format(date, sameYear ? "d. MMMM" : "d. MMMM yyyy", { locale: de });
 }
 
+/** "Heute um 15:00 Uhr" / "Morgen um 15:00 Uhr" / "3. Oktober um 15:00 Uhr"
+ * — the push-notification body phrasing (spec: reminder pushes must carry
+ * the actual date once it's neither today nor tomorrow, never a bare
+ * weekday name that reads fine same-week but ambiguous later — and must
+ * never repeat the event title or app name, which the title/icon already
+ * show). Omit `startTime` (all-day) to drop the " um HH:MM Uhr" suffix
+ * entirely, leaving just the day label. */
+export function pushTimingPhrase(dateISO: string, startTime?: string | null): string {
+  const date = fromISODate(dateISO);
+  const dayLabel = isToday(date) ? "Heute" : isTomorrow(date) ? "Morgen" : format(date, "d. MMMM", { locale: de });
+  return startTime ? `${dayLabel} um ${startTime} Uhr` : dayLabel;
+}
+
 /** Lowercase, mid-sentence variant of relativeDayLabel — for reminder/
  * notification copy like "Höhenplan bereitlegen (morgen)." */
 export function relativeDayPhrase(date: Date) {

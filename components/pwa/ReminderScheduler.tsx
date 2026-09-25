@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { useAppStore } from "@/lib/store/app-store";
 import { useReminderScheduler, useTaskReminderScheduler } from "@/lib/hooks/useReminderScheduler";
 import { fireNotification, useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
-import { buildEventReminderMessage, buildTaskReminderMessage } from "@/lib/reminder-messages";
+import { buildEventReminderPush, buildTaskReminderPush } from "@/lib/reminder-messages";
 
 /** Mounted once at the app root — checks upcoming events and tasks with a
  * reminder set roughly every 30s while this tab is open, and surfaces due
@@ -19,8 +19,7 @@ export function ReminderScheduler() {
   const onEventDue = useCallback(
     (event: (typeof events)[number]) => {
       const openPrepCount = tasks.filter((t) => t.linkedEventId === event.id && !t.done).length;
-      const title = `Erinnerung: ${event.title}`;
-      const body = buildEventReminderMessage(event, openPrepCount);
+      const { title, body } = buildEventReminderPush(event, openPrepCount);
 
       addLocalNotification({ title, body });
       showToast(title);
@@ -34,8 +33,7 @@ export function ReminderScheduler() {
   const onTaskDue = useCallback(
     (task: (typeof tasks)[number]) => {
       const linkedEvent = task.linkedEventId ? events.find((e) => e.id === task.linkedEventId) : null;
-      const title = `Erinnerung: ${task.title}`;
-      const body = buildTaskReminderMessage(task, linkedEvent);
+      const { title, body } = buildTaskReminderPush(task, linkedEvent);
 
       addLocalNotification({ title, body });
       showToast(title);

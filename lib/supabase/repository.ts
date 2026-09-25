@@ -7,8 +7,8 @@
 import { getSupabaseClient } from "./client";
 import type { Database } from "./types";
 import {
-  buildEventReminderMessage,
-  buildTaskReminderMessage,
+  buildEventReminderPush,
+  buildTaskReminderPush,
   computeEventRemindAt,
   computeTaskRemindAt,
 } from "@/lib/reminder-messages";
@@ -75,8 +75,10 @@ function resolvePersonId(profiles: FamilyProfileRef[], id: string | null): Perso
 // field so the send-due-reminders edge function (and pg_cron) has
 // something to poll. computeEventRemindAt anchors all-day events (e.g.
 // birthdays) to a fixed local time of day, since they have no intrinsic
-// time. A stored `message` carries prep-task-aware copy (see lib/reminder-
-// messages.ts) so the edge function and the in-app bell don't re-derive it.
+// time. The stored `message` column holds only the push BODY (see
+// lib/reminder-messages.ts) — never the title, which the edge function
+// looks up fresh from the event's/task's current title at send time so a
+// later rename is always reflected without needing to resync here.
 //
 // A recurring event's reminder only ever tracks ONE upcoming occurrence per
 // row — send-due-reminders itself advances remind_at to the next occurrence
@@ -109,7 +111,7 @@ export async function syncEventReminder(familyId: string, event: CalendarEvent) 
     .select("id", { count: "exact", head: true })
     .eq("linked_event_id", event.id)
     .eq("done", false);
-  const message = buildEventReminderMessage(event, count ?? 0);
+  const { body: message } = buildEventReminderPush(event, count ?? 0);
 
   const rows = Array.from(offsets).map((minutesBefore) => ({
     family_id: familyId,
@@ -133,7 +135,7 @@ export async function syncTaskReminder(familyId: string, task: TaskItem, linkedE
   }
 
   const remindAt = computeTaskRemindAt(task.dueDate, task.reminderMinutesBefore).toISOString();
-  const message = buildTaskReminderMessage(task, linkedEvent);
+  const { body: message } = buildTaskReminderPush(task, linkedEvent);
 
   const { error: deleteError } = await supabase.from("reminders").delete().eq("task_id", task.id);
   if (deleteError) throw deleteError;
@@ -409,16 +411,16 @@ export async function updateEventRow(
   const { error } = await client().from("events").update(update).eq("id", id);
   if (error) throw error;
 
-  // Since every event always carries the two automatic reminders (see
-  // syncEventReminder), a title change also counts as reminder-relevant —
-  // otherwise the stored reminder message text (which quotes the title)
-  // would go stale after a rename.
+  // The stored reminder message body carries the timing and (for events) a
+  // short location, but never the title — that's looked up fresh from the
+  // event at send time, so renaming an event doesn't need a resync. A
+  // location edit does, though, since it's baked into the stored body.
   const reminderRelevant =
     patch.reminderMinutesBefore !== undefined ||
     patch.date !== undefined ||
     patch.startTime !== undefined ||
     patch.allDay !== undefined ||
-    patch.title !== undefined;
+    patch.location !== undefined;
   if (reminderRelevant) {
     try {
       await syncEventReminder(familyId, merged);

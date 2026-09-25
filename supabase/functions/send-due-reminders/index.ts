@@ -98,13 +98,21 @@ Deno.serve(async (req: Request) => {
   let sent = 0;
 
   for (const reminder of dueReminders) {
-    // reminder.message already carries the full, prep-task-aware copy
+    // reminder.message already carries the timing/location/prep-task body
     // (built client-side in lib/reminder-messages.ts when the reminder row
-    // was written) — only the title needs a fresh lookup of the title.
-    let title = "⏰ Erinnerung";
+    // was written) — the title is looked up fresh here instead of stored,
+    // so a rename after the reminder was created is still reflected. Just
+    // the bare event/task name: the OS notification already shows which
+    // app sent it, and (on iPhone) its own "von dayli"-style origin line,
+    // so a "⏰ Erinnerung:" prefix here would only repeat that.
+    let title = "Erinnerung";
     const body = reminder.message ?? "";
     let recurrenceRule: string | null = null;
     let assignee: string | null = null;
+    // Where tapping the notification (not an action button) should land —
+    // the event's own detail view, or the tasks list for a task reminder,
+    // never just the home page regardless of what the reminder was for.
+    let url = "/";
 
     if (reminder.event_id) {
       const { data: event } = await supabase
@@ -113,9 +121,10 @@ Deno.serve(async (req: Request) => {
         .eq("id", reminder.event_id)
         .maybeSingle();
       if (event) {
-        title = `⏰ Erinnerung: ${event.title}`;
+        title = event.title;
         recurrenceRule = event.recurrence_rule;
         assignee = event.assignee;
+        url = `/?event=${reminder.event_id}`;
       }
     } else if (reminder.task_id) {
       const { data: task } = await supabase
@@ -124,8 +133,9 @@ Deno.serve(async (req: Request) => {
         .eq("id", reminder.task_id)
         .maybeSingle();
       if (task) {
-        title = `✅ Erinnerung: ${task.title}`;
+        title = task.title;
         assignee = task.assignee;
+        url = "/aufgaben";
       }
     }
 
@@ -163,6 +173,7 @@ Deno.serve(async (req: Request) => {
             title,
             body,
             tag: reminder.id,
+            url,
             reminderId: reminder.id,
             sig,
             hasTask: Boolean(reminder.task_id),

@@ -160,7 +160,7 @@ function DailyBriefingHost() {
 }
 
 function ShellChrome({ children }: { children: React.ReactNode }) {
-  const { sheet, openQuickAddMenu, close } = useSheet();
+  const { sheet, openQuickAddMenu, openEventDetail, close } = useSheet();
   const { preferences, ready } = useAppStore();
   const { splashDone } = useSplash();
   const pathname = usePathname();
@@ -177,6 +177,27 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     }
   }, [ready, splashDone, preferences.hasOnboarded, isLoginRoute, router]);
+
+  // Web-Push side of the "tap a reminder → land on that event" deep link —
+  // useDeepLinks above covers the native `dayli://event/{id}` scheme, but
+  // the actual PWA reminders (public/sw.js's notificationclick) navigate to
+  // a plain `/?event={id}` URL instead, since a service worker has no way
+  // to fire the Capacitor-only appUrlOpen event. Gated on `ready` (events
+  // loaded) rather than pathname, since this only ever needs to run once
+  // per fresh load — a real browser navigation from the service worker,
+  // not a client-side route change, is what gets a tab here in the first
+  // place. The param is stripped right after so a later refresh or back
+  // navigation doesn't reopen the same sheet.
+  useEffect(() => {
+    if (!ready || isLoginRoute) return;
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get("event");
+    if (!eventId) return;
+    openEventDetail(eventId);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("event");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }, [ready, isLoginRoute, openEventDetail]);
 
   // Close the Dayli Dock's quick-create popover on every real route change
   // (including navigating away to a detail page where the Dock itself
