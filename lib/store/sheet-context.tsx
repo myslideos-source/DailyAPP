@@ -28,6 +28,12 @@ export type ActiveSheet =
 
 interface SheetContextValue {
   sheet: ActiveSheet;
+  /** The day currently selected in a visible month calendar (Heute /
+   * Kalender), as ISO date — or null when no calendar is on screen. New
+   * events opened without an explicit date (e.g. from the Dayli Dock's +)
+   * default to this day. */
+  calendarDate: string | null;
+  setCalendarDate: (date: string | null) => void;
   openQuickAddMenu: () => void;
   /** The compact "Neu erstellen" popover anchored above the Dayli Dock's
    * brand orb on mobile — a leaner set of actions than the desktop grid
@@ -65,14 +71,17 @@ const SheetContext = createContext<SheetContextValue | null>(null);
 
 export function SheetProvider({ children }: { children: React.ReactNode }) {
   const [sheet, setSheet] = useState<ActiveSheet>(null);
+  const [calendarDate, setCalendarDate] = useState<string | null>(null);
 
   const value = useMemo<SheetContextValue>(
     () => ({
       sheet,
+      calendarDate,
+      setCalendarDate,
       openQuickAddMenu: () => setSheet({ kind: "menu" }),
       openQuickCreateMenu: () => setSheet({ kind: "quickCreate" }),
-      openNewEvent: (date) => setSheet({ kind: "newEvent", date }),
-      openManualNewEvent: (date) => setSheet({ kind: "newEventManual", date }),
+      openNewEvent: (date) => setSheet({ kind: "newEvent", date: date ?? calendarDate ?? undefined }),
+      openManualNewEvent: (date) => setSheet({ kind: "newEventManual", date: date ?? calendarDate ?? undefined }),
       openEventDetail: (eventId) => setSheet({ kind: "eventDetail", eventId }),
       openEventEdit: (eventId) => setSheet({ kind: "eventEdit", editEventId: eventId }),
       openQuickAdd: (kind) => setSheet({ kind }),
@@ -88,7 +97,7 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
       openHausbauCategoryManager: () => setSheet({ kind: "hausbauCategoryManager" }),
       close: () => setSheet(null),
     }),
-    [sheet],
+    [sheet, calendarDate],
   );
 
   return <SheetContext.Provider value={value}>{children}</SheetContext.Provider>;

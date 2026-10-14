@@ -48,7 +48,9 @@ export function NewEventSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  defaultDate: string;
+  /** The day tapped in the calendar, if any — used whenever the text
+   * itself names no date, so it doesn't have to be typed in again. */
+  defaultDate: string | null;
 }) {
   const { addEvent, addTask, events, showToast } = useAppStore();
   const { openManualNewEvent } = useSheet();
@@ -58,6 +60,7 @@ export function NewEventSheet({
   const [text, setText] = useState("");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState<string | null>(null);
+  const [dateFromText, setDateFromText] = useState(false);
   const [startTime, setStartTime] = useState<string | null>(null);
   const [location, setLocation] = useState("");
   const [assignee, setAssignee] = useState<Assignee>("gemeinsam");
@@ -83,25 +86,28 @@ export function NewEventSheet({
     if (!open) return;
     if (!text.trim()) {
       setTitle("");
-      setDate(null);
+      setDate(defaultDate);
+      setDateFromText(false);
       setStartTime(null);
       return;
     }
     const draft = parseEventTextLocally(text);
     setTitle(draft.title);
-    setDate(draft.date);
+    setDate(draft.date ?? defaultDate);
+    setDateFromText(draft.date !== null);
     setStartTime(draft.startTime);
     if (draft.location) setLocation(draft.location);
     if (draft.assigneeCertain) setAssignee(draft.assignee);
     if (draft.reminderMinutesBefore) setReminder(String(draft.reminderMinutesBefore));
     if (draft.prepTasks.length > 0) setPrepTasks(draft.prepTasks);
-  }, [text, open]);
+  }, [text, open, defaultDate]);
 
   useEffect(() => {
     if (!open) {
       setText("");
       setTitle("");
       setDate(null);
+      setDateFromText(false);
       setStartTime(null);
       setLocation("");
       setAssignee("gemeinsam");
@@ -141,7 +147,7 @@ export function NewEventSheet({
 
   function handleAdvanced() {
     onClose();
-    openManualNewEvent(date ?? defaultDate);
+    openManualNewEvent(date ?? defaultDate ?? undefined);
   }
 
   async function handleSave() {
@@ -272,7 +278,7 @@ export function NewEventSheet({
                   {recognizedLabel}
                 </p>
                 <p className="text-[12px]" style={{ color: "var(--dl-text-faint)" }}>
-                  Aus deinem Text erkannt
+                  {dateFromText ? "Aus deinem Text erkannt" : "Im Kalender ausgewählt"}
                 </p>
               </div>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { addMonths, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarX, ChevronLeft, ChevronRight, Search } from "lucide-react";
@@ -18,13 +18,21 @@ import { formatLongDate, formatMonthYear, toISODate } from "@/lib/date-utils";
 
 export default function KalenderPage() {
   const { events, preferences } = useAppStore();
-  const { openNewEvent } = useSheet();
+  const { openNewEvent, setCalendarDate } = useSheet();
   const [anchor, setAnchor] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [filter, setFilter] = useState<CalendarFilter>(() => preferences.calendarFilters);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const reducedMotion = useReducedMotion();
+  const selectedISO = toISODate(selectedDate);
+
+  // Lets new events opened without an explicit date (e.g. via the Dayli
+  // Dock's +) default to the day tapped in the calendar here.
+  useEffect(() => {
+    setCalendarDate(selectedISO);
+  }, [selectedISO, setCalendarDate]);
+  useEffect(() => () => setCalendarDate(null), [setCalendarDate]);
 
   const filtered = useMemo(() => filterEvents(events, filter), [events, filter]);
 
@@ -52,12 +60,11 @@ export default function KalenderPage() {
   }, [filtered, monthStart]);
 
   const dayEvents = useMemo(() => {
-    const selectedISO = toISODate(selectedDate);
     return expandEventsForDay(filtered, selectedISO).sort((a, b) => {
       if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
       return (a.startTime ?? "").localeCompare(b.startTime ?? "");
     });
-  }, [filtered, selectedDate]);
+  }, [filtered, selectedISO]);
 
   return (
     <div className="pt-3">
@@ -171,7 +178,7 @@ export default function KalenderPage() {
                     action={
                       <button
                         type="button"
-                        onClick={() => openNewEvent(toISODate(selectedDate))}
+                        onClick={() => openNewEvent(selectedISO)}
                         className="mt-1 rounded-full border px-4 py-2 text-[13px] font-medium"
                         style={{ borderColor: "var(--dl-border-strong)", color: "var(--dl-text)" }}
                       >

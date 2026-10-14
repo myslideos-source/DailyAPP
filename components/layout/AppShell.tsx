@@ -57,7 +57,7 @@ function SheetRenderer() {
       <NewEventSheet
         open={sheet?.kind === "newEvent"}
         onClose={close}
-        defaultDate={sheet?.kind === "newEvent" ? sheet.date ?? toISODate(new Date()) : toISODate(new Date())}
+        defaultDate={sheet?.kind === "newEvent" ? sheet.date ?? null : null}
       />
       <EventDetailSheet open={sheet?.kind === "eventDetail"} onClose={close} eventId={detailEventId} />
       <EventFormSheet

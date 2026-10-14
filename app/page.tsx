@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { addMonths, differenceInCalendarDays, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarX } from "lucide-react";
@@ -19,7 +19,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function HomePage() {
   const { events, preferences } = useAppStore();
-  const { openNewEvent } = useSheet();
+  const { openNewEvent, setCalendarDate } = useSheet();
   const { splashDone } = useSplash();
   const reducedMotion = useReducedMotion();
   const nowTick = useNowTick();
@@ -27,6 +27,13 @@ export default function HomePage() {
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
 
   const selectedISO = toISODate(selectedDate);
+
+  // Lets new events opened without an explicit date (e.g. via the Dayli
+  // Dock's +) default to the day tapped in the calendar here.
+  useEffect(() => {
+    setCalendarDate(selectedISO);
+  }, [selectedISO, setCalendarDate]);
+  useEffect(() => () => setCalendarDate(null), [setCalendarDate]);
 
   const dayEvents = useMemo(() => {
     return expandEventsForDay(events, selectedISO).sort((a, b) => {
