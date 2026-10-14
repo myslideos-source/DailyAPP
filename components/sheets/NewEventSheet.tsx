@@ -224,8 +224,11 @@ export function NewEventSheet({
       }
     >
       <div className="flex flex-col gap-5">
+        {/* The whole card acts as the input field: it carries the focus
+            highlight, so the borderless textarea inside needs no ring of its
+            own (which would sit right on the caret, since it has no padding). */}
         <div
-          className="rounded-[17px] p-4"
+          className="rounded-[17px] p-4 transition-colors focus-within:!border-[var(--dl-together)]"
           style={{
             background: "rgba(13, 18, 42, 0.45)",
             border: "1px solid rgba(140, 150, 255, 0.2)",
@@ -259,7 +262,7 @@ export function NewEventSheet({
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={EXAMPLE}
-            className="!border-0 !bg-transparent !p-0 mt-1 text-[16px] leading-snug"
+            className="!border-0 !bg-transparent !p-0 mt-1 text-[16px] leading-snug focus-visible:!outline-none"
           />
           {STATUS_TEXT[effectiveStatus] && (
             <p className="mt-1.5 text-[12px]" style={{ color: "var(--dl-text-faint)" }}>
